@@ -1,0 +1,13 @@
+{
+  "dart.flutterSdkPath": "C:\\src\\flutter",
+  "dart.lineLength": 80,
+  "editor.formatOnSave": true,
+  "[dart]": {
+    "editor.rulers": [80],
+    "editor.selectionHighlight": false,
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
+    "editor.suggestSelection": "first",
+    "editor.tabCompletion": "onlySnippets",
+    "editor.wordBasedSuggestions": "off"
+  }
+}
