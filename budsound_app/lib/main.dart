@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_routes.dart';
-import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/recover_password_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/session_service.dart';
 import 'theme/app_theme.dart';
@@ -30,7 +31,8 @@ class BudsoundApp extends StatelessWidget {
         AppRoutes.splash: (_) => const SplashScreen(),
         AppRoutes.login: (_) => const LoginScreen(),
         AppRoutes.register: (_) => const RegisterScreen(),
-        AppRoutes.home: (_) => const HomeScreen(),
+        AppRoutes.recover: (_) => const RecoverPasswordScreen(),
+        AppRoutes.home: (_) => const ShellScreen(),
       },
     );
   }

@@ -92,6 +92,16 @@ class AuthService {
     return const AuthResult.ok(mensaje: 'Cuenta creada');
   }
 
+  Future<AuthResult> solicitarRecuperacion(String email) async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (!_emailValido(email)) {
+      return const AuthResult.fail('El correo electrónico no es válido.');
+    }
+    return const AuthResult.ok(
+      mensaje: 'Enlace de recuperación enviado (simulado).',
+    );
+  }
+
   bool _emailValido(String email) {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim());
   }

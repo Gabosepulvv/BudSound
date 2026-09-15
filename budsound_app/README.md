@@ -1,17 +1,21 @@
 # budsound
 
-A new Flutter project.
+App Flutter de descubrimiento de DJs y sesiones en vivo.
 
-## Getting Started
+## Qué hay ahora
 
-This project is a starting point for a Flutter application.
+- Splash con restauración de JWT en disco
+- Login / registro (Público o DJ) y recuperación de contraseña (auth simulada)
+- Google Sign-In simulado
+- **Descubrir**: catálogo iTunes Search API con preview de 30 s
+- **En vivo**: salas de DJ (catálogo local hasta el backend)
+- **Perfil**: datos de sesión y cierre
 
-A few resources to get you started if this is your first Flutter project:
+## Cómo correrla
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+En web, iTunes puede requerir el proxy CORS ya incluido en `ItunesService`.

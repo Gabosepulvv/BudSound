@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../core/app_routes.dart';
 import '../models/itunes_track.dart';
 import '../models/user_role.dart';
 import '../services/itunes_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glow_logo.dart';
+import '../widgets/track_tile.dart';
 
-/// Shell post-login: catálogo iTunes (base para Descubrir y otras vistas).
+/// Catálogo iTunes: Descubrir canciones y reproducir previews.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -60,15 +60,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _cerrarSesion() async {
-    await SessionService.instance.cerrarSesion();
-    if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.login,
-      (_) => false,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final sesion = SessionService.instance;
@@ -86,13 +77,6 @@ class _HomeScreenState extends State<HomeScreen> {
             Text('Descubrir'),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Cerrar sesión',
-            onPressed: _cerrarSesion,
-            icon: const Icon(Icons.logout_rounded),
-          ),
-        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -111,9 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Catálogo vía iTunes Search API — base para las próximas vistas.',
-                  style: TextStyle(color: AppColors.muted, fontSize: 13),
+                Text(
+                  esDj
+                      ? 'Explora tracks para armar el set. Toca una pista para oír el preview.'
+                      : 'Busca canciones y DJs. Toca una pista para oír 30 s de preview.',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 13),
                 ),
                 const SizedBox(height: 14),
                 TextField(
@@ -179,57 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       itemCount: _pistas.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final pista = _pistas[index];
-        return Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                pista.artworkGrande,
-                width: 56,
-                height: 56,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: Icon(Icons.album_rounded),
-                ),
-              ),
-            ),
-            title: Text(
-              pista.trackName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            subtitle: Text(
-              '${pista.artistName} · ${pista.genre}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.muted),
-            ),
-            trailing: pista.previewUrl == null
-                ? null
-                : const Icon(
-                    Icons.play_circle_outline_rounded,
-                    color: AppColors.neonBlue,
-                  ),
-          ),
-        );
-      },
+      itemBuilder: (context, index) => TrackTile(pista: _pistas[index]),
     );
   }
 }

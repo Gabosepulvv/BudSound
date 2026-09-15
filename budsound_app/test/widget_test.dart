@@ -16,5 +16,6 @@ void main() {
     expect(find.text('Iniciar Sesión'), findsOneWidget);
     expect(find.text('Iniciar sesión con Google'), findsOneWidget);
     expect(find.text('Crear cuenta'), findsOneWidget);
+    expect(find.text('¿Olvidaste tu contraseña?'), findsOneWidget);
   });
 }

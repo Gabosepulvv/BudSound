@@ -1,5 +1,5 @@
 name: budsound
-description: Aplicación Budsound — descubrimiento de DJs y sesiones en vivo.
+description: Budsound — pedidos de canciones en vivo para público y DJ.
 publish_to: "none"
 version: 1.0.0+1
 
@@ -12,6 +12,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.2.2
   shared_preferences: ^2.3.3
+  audioplayers: ^6.1.0
+  crypto: ^3.0.6
+  qr_flutter: ^4.1.0
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:

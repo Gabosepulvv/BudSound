@@ -30,6 +30,10 @@ class AppTheme {
         centerTitle: true,
         foregroundColor: AppColors.white,
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.neonBlue.withOpacity(0.28),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,

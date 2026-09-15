@@ -75,12 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _olvidoPassword() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pronto podrás recuperar tu contraseña.'),
-        backgroundColor: AppColors.cobalt,
-      ),
-    );
+    Navigator.of(context).pushNamed(AppRoutes.recover);
   }
 
   @override
