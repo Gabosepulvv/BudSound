@@ -48,6 +48,14 @@ const listarPorEvento = asyncHandler(async (req, res) => {
   res.json({ requests });
 });
 
+const misSolicitudesEnEvento = asyncHandler(async (req, res) => {
+  const event = await eventModel.buscarPorId(req.params.eventId);
+  if (!event) throw new ApiError(404, 'Evento no encontrado.');
+
+  const requests = await requestModel.listarPorEventoYParticipante(event.id, req.user.sub);
+  res.json({ requests });
+});
+
 async function resolverSolicitud(req, res, nuevoStatus) {
   const request = await requestModel.buscarPorId(req.params.id);
   if (!request) throw new ApiError(404, 'Solicitud no encontrada.');
@@ -88,4 +96,4 @@ async function resolverSolicitud(req, res, nuevoStatus) {
 const aceptar = asyncHandler((req, res) => resolverSolicitud(req, res, 'ACEPTADA'));
 const rechazar = asyncHandler((req, res) => resolverSolicitud(req, res, 'RECHAZADA'));
 
-module.exports = { crear, listarPorEvento, aceptar, rechazar };
+module.exports = { crear, listarPorEvento, misSolicitudesEnEvento, aceptar, rechazar };

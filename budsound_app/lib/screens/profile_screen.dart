@@ -93,8 +93,8 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             esDj
-                ? 'Desde En vivo puedes abrir tu booth. El streaming real llegará con el backend.'
-                : 'Descubre sets y entra a salas en vivo desde la pestaña En vivo.',
+                ? 'Desde En vivo puedes crear un evento, mostrar el QR y gestionar la cola de solicitudes.'
+                : 'Escanea el QR de un evento desde En vivo para pedir canciones al DJ.',
             style: const TextStyle(color: AppColors.muted, fontSize: 13),
           ),
           const SizedBox(height: 28),

@@ -9,8 +9,11 @@ class UserModel {
     required this.fechaNacimiento,
     required this.rol,
     this.nombreArtistico,
+    this.id,
   });
 
+  /// Id real asignado por el backend (null mientras solo existe en el form).
+  final String? id;
   final String nombre;
   final String apellido;
   final String email;
@@ -34,6 +37,7 @@ class UserModel {
   }
 
   Map<String, dynamic> toJson() => {
+        'id': id,
         'nombre': nombre,
         'apellido': apellido,
         'email': email,
@@ -44,6 +48,7 @@ class UserModel {
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
+      id: json['id'] as String?,
       nombre: json['nombre'] as String? ?? '',
       apellido: json['apellido'] as String? ?? '',
       email: json['email'] as String? ?? '',

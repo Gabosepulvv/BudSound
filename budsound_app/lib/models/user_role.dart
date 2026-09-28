@@ -17,4 +17,18 @@ extension UserRoleX on UserRole {
         return 'DJ';
     }
   }
+
+  /// Valor que espera el backend (`PARTICIPANTE` | `DJ`).
+  String get backendValue {
+    switch (this) {
+      case UserRole.publico:
+        return 'PARTICIPANTE';
+      case UserRole.dj:
+        return 'DJ';
+    }
+  }
+
+  static UserRole desdeBackend(String? value) {
+    return value == 'DJ' ? UserRole.dj : UserRole.publico;
+  }
 }

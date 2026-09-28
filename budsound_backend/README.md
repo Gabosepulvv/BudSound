@@ -63,6 +63,7 @@ src/
 - `GET /api/events/mine`, `PATCH /api/events/:id/close`, `GET /api/events/:id/summary`
 - `POST /api/events/:eventId/requests` (Participante) — solicita canción con monto opcional
 - `GET /api/events/:eventId/requests` (DJ) — cola de solicitudes
+- `GET /api/events/:eventId/requests/mine` (Participante) — solo sus propias solicitudes en ese evento
 - `PATCH /api/requests/:id/accept` / `PATCH /api/requests/:id/reject` (DJ)
 - `GET /api/songs/search?q=...` — proxy de iTunes Search API
 - `GET /api/requests/:id/payment` (Participante) — estado de su transacción

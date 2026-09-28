@@ -34,6 +34,16 @@ async function listarPorEvento(eventId, { status } = {}) {
   return rows;
 }
 
+async function listarPorEventoYParticipante(eventId, participanteId) {
+  const { rows } = await pool.query(
+    `SELECT * FROM song_requests
+     WHERE event_id = $1 AND participante_id = $2
+     ORDER BY created_at ASC`,
+    [eventId, participanteId],
+  );
+  return rows;
+}
+
 async function resolver(id, status) {
   const { rows } = await pool.query(
     `UPDATE song_requests SET status = $2, resolved_at = now()
@@ -44,4 +54,10 @@ async function resolver(id, status) {
   return rows[0] || null;
 }
 
-module.exports = { crear, buscarPorId, listarPorEvento, resolver };
+module.exports = {
+  crear,
+  buscarPorId,
+  listarPorEvento,
+  listarPorEventoYParticipante,
+  resolver,
+};

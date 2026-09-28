@@ -13,5 +13,11 @@ router.get('/:id/summary', requireAuth, requireRole('DJ'), eventController.resum
 
 router.post('/:eventId/requests', requireAuth, requireRole('PARTICIPANTE'), requestController.crear);
 router.get('/:eventId/requests', requireAuth, requireRole('DJ'), requestController.listarPorEvento);
+router.get(
+  '/:eventId/requests/mine',
+  requireAuth,
+  requireRole('PARTICIPANTE'),
+  requestController.misSolicitudesEnEvento,
+);
 
 module.exports = router;
