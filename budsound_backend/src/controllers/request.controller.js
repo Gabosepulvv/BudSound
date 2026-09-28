@@ -63,17 +63,18 @@ async function resolverSolicitud(req, res, nuevoStatus) {
     const comisionClp = Math.round(resuelta.monto_clp * env.commissionRate);
     const montoNetoClp = resuelta.monto_clp - comisionClp;
 
+    pago = await mercadopagoService.crearPreferenciaDePago({
+      requestId: resuelta.id,
+      montoClp: resuelta.monto_clp,
+      descripcion: `Propina para ${event.nombre}: ${resuelta.titulo}`,
+    });
+
     const transaction = await transactionModel.crear({
       requestId: resuelta.id,
       montoBrutoClp: resuelta.monto_clp,
       comisionClp,
       montoNetoClp,
-    });
-
-    pago = await mercadopagoService.crearPreferenciaDePago({
-      requestId: resuelta.id,
-      montoClp: resuelta.monto_clp,
-      descripcion: `Propina para ${event.nombre}: ${resuelta.titulo}`,
+      mpPaymentId: pago.preferenceId,
     });
 
     req.io.to(`event:${event.id}`).emit('request:resolved', { request: resuelta, transaction });

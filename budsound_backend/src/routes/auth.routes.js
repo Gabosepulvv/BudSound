@@ -1,11 +1,21 @@
 const { Router } = require('express');
+const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/auth.controller');
 const { requireAuth } = require('../middleware/auth.middleware');
 
 const router = Router();
 
-router.post('/register', authController.registrar);
-router.post('/login', authController.iniciarSesion);
+// Limita intentos de login/registro por IP para dificultar fuerza bruta.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos, espera unos minutos.' },
+});
+
+router.post('/register', authLimiter, authController.registrar);
+router.post('/login', authLimiter, authController.iniciarSesion);
 router.get('/me', requireAuth, authController.perfil);
 
 module.exports = router;

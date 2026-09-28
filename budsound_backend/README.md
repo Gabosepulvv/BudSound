@@ -45,6 +45,9 @@ src/
 - `GET /api/events/:eventId/requests` (DJ) — cola de solicitudes
 - `PATCH /api/requests/:id/accept` / `PATCH /api/requests/:id/reject` (DJ)
 - `GET /api/songs/search?q=...` — proxy de iTunes Search API
+- `GET /api/requests/:id/payment` (Participante) — estado de su transacción
+- `POST /api/requests/:id/payment/simulate-approval` (Participante) — simula la aprobación del pago mientras no haya credenciales reales de MercadoPago (se elimina cuando se integre el gateway real)
+- `POST /api/webhooks/mercadopago` — receptor del webhook real (sin auth, stub por ahora)
 
 ## Tiempo real
 
@@ -55,6 +58,9 @@ y `request:resolved` para mantener la cola sincronizada sin hacer polling.
 ## Pendiente
 
 - Integración real de MercadoPago cuando existan credenciales de sandbox
-  (`src/services/mercadopago.service.js` tiene el stub y el TODO).
-- Webhook de confirmación de pago de MercadoPago para marcar `transactions`
-  como `APROBADA`.
+  (`src/services/mercadopago.service.js` tiene el stub y el TODO). El
+  webhook (`src/controllers/payment.controller.js`) ya está enrutado pero
+  solo loguea la notificación — falta validar contra la API de MercadoPago
+  y actualizar `transactions.status` según el pago real.
+- Mientras no haya credenciales, `POST /api/requests/:id/payment/simulate-approval`
+  permite demostrar el flujo completo aceptar → pagar → aprobado.
