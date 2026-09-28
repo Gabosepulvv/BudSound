@@ -12,14 +12,34 @@ cobro (pendiente de credenciales de sandbox — ver `.env.example`).
 
 ## Cómo correr en local
 
+Necesitas Docker Desktop abierto (una sola vez, no hay que instalar
+PostgreSQL en tu máquina):
+
+```bash
+docker run -d --name budsound-postgres \
+  -e POSTGRES_USER=budsound \
+  -e POSTGRES_PASSWORD=budsound \
+  -e POSTGRES_DB=budsound \
+  -p 5432:5432 \
+  postgres:16-alpine
+```
+
+Después, en `budsound_backend/`:
+
 ```bash
 npm install
-cp .env.example .env   # completa DATABASE_URL y JWT_SECRET
+cp .env.example .env
+# DATABASE_URL=postgresql://budsound:budsound@localhost:5432/budsound
+# JWT_SECRET=cualquier-string-para-desarrollo
 npm run db:migrate     # crea las tablas en PostgreSQL
 npm run dev
 ```
 
-El servidor queda en `http://localhost:3000`. Healthcheck: `GET /api/health`.
+El servidor queda en `http://localhost:3000`. Healthcheck (verifica también
+la conexión a la BD): `GET /api/health`.
+
+Para volver a levantar el contenedor otro día (ya no hace falta crearlo de
+nuevo): `docker start budsound-postgres`.
 
 ## Estructura
 
