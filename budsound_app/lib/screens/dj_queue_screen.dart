@@ -26,6 +26,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
   late EventModel _evento;
 
   List<SongRequestModel> _solicitudes = [];
+  Map<String, dynamic>? _resumen;
   bool _cargando = true;
   bool _conectado = true;
   final Set<String> _resolviendo = {};
@@ -54,9 +55,15 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
   Future<void> _cargarCola() async {
     try {
       final solicitudes = await _requestService.listarPorEvento(_evento.id);
+      // El resumen solo tiene sentido una vez cerrado el evento — se queda
+      // visible en la pantalla en vez de mostrarse una sola vez en un
+      // diálogo que desaparece al salir.
+      final resumen =
+          _evento.activo ? null : await _eventService.resumen(_evento.id);
       if (!mounted) return;
       setState(() {
         _solicitudes = solicitudes;
+        _resumen = resumen;
         _cargando = false;
       });
     } catch (e) {
@@ -126,30 +133,18 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     if (confirmar != true) return;
 
     try {
-      await _eventService.cerrar(_evento.id);
-      final resumen = await _eventService.resumen(_evento.id);
+      final eventoCerrado = await _eventService.cerrar(_evento.id);
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text('Evento cerrado',
-              style: TextStyle(color: AppColors.white)),
-          content: Text(
-            'Solicitudes aceptadas: ${resumen['solicitudes_aceptadas']}\n'
-            'Recaudación neta: \$${resumen['recaudacion_neta_clp']} CLP',
-            style: const TextStyle(color: AppColors.muted),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Listo'),
-            ),
-          ],
+      setState(() => _evento = eventoCerrado);
+      await _cargarCola();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Evento cerrado. Abajo queda el resumen de recaudación.'),
+          backgroundColor: AppColors.cobalt,
         ),
       );
-      if (!mounted) return;
-      Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -183,6 +178,10 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
           children: [
             if (!_conectado) _bannerSinConexion(),
             _tarjetaQr(),
+            if (!_evento.activo && _resumen != null) ...[
+              const SizedBox(height: 16),
+              _tarjetaResumen(_resumen!),
+            ],
             const SizedBox(height: 20),
             Text(
               'Cola (${pendientes.length})',
@@ -287,6 +286,62 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                 ? 'El público escanea este código para unirse.'
                 : 'Este evento ya está cerrado.',
             style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tarjetaResumen(Map<String, dynamic> resumen) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.neonBlue),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Resumen del evento',
+            style: TextStyle(
+                color: AppColors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          _filaResumen(
+              'Solicitudes aceptadas', '${resumen['solicitudes_aceptadas']}'),
+          _filaResumen(
+              'Solicitudes totales', '${resumen['solicitudes_totales']}'),
+          _filaResumen(
+              'Recaudación bruta', '\$${resumen['recaudacion_bruta_clp']} CLP'),
+          _filaResumen(
+              'Comisión BudSound', '\$${resumen['comision_total_clp']} CLP'),
+          _filaResumen(
+              'Recaudación neta', '\$${resumen['recaudacion_neta_clp']} CLP',
+              destacado: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _filaResumen(String etiqueta, String valor, {bool destacado = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(etiqueta,
+              style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+          Text(
+            valor,
+            style: TextStyle(
+              color: destacado ? AppColors.neonBlue : AppColors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: destacado ? 16 : 13,
+            ),
           ),
         ],
       ),
