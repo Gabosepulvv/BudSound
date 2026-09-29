@@ -21,6 +21,11 @@ CREATE TABLE users (
   nombre            TEXT NOT NULL,
   apellido          TEXT NOT NULL,
   nombre_artistico  TEXT,
+  -- Data URL (data:image/...;base64,...) de la foto de perfil. Se guarda
+  -- directo en la fila en vez de un archivo en disco porque Railway (free
+  -- tier) tiene filesystem efímero — un archivo subido se perdería en el
+  -- próximo redeploy.
+  avatar_data_url   TEXT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

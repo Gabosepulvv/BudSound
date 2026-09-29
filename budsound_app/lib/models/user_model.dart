@@ -10,6 +10,7 @@ class UserModel {
     required this.rol,
     this.nombreArtistico,
     this.id,
+    this.avatarDataUrl,
   });
 
   /// Id real asignado por el backend (null mientras solo existe en el form).
@@ -22,6 +23,29 @@ class UserModel {
 
   /// Solo aplica cuando [rol] es [UserRole.dj].
   final String? nombreArtistico;
+
+  /// Data URL (`data:image/...;base64,...`) de la foto de perfil, o null.
+  final String? avatarDataUrl;
+
+  /// [clearAvatar] en true fuerza [avatarDataUrl] a null (quitar la foto);
+  /// de lo contrario, un [avatarDataUrl] null significa "no lo cambies".
+  UserModel copyWith({
+    String? nombre,
+    String? apellido,
+    String? avatarDataUrl,
+    bool clearAvatar = false,
+  }) {
+    return UserModel(
+      id: id,
+      nombre: nombre ?? this.nombre,
+      apellido: apellido ?? this.apellido,
+      email: email,
+      fechaNacimiento: fechaNacimiento,
+      rol: rol,
+      nombreArtistico: nombreArtistico,
+      avatarDataUrl: clearAvatar ? null : (avatarDataUrl ?? this.avatarDataUrl),
+    );
+  }
 
   /// Nombre completo para mostrar en UI.
   String get nombreCompleto => '$nombre $apellido'.trim();
@@ -44,6 +68,7 @@ class UserModel {
         'fechaNacimiento': fechaNacimiento.toIso8601String(),
         'rol': rol.name,
         'nombreArtistico': nombreArtistico,
+        'avatarDataUrl': avatarDataUrl,
       };
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -61,6 +86,7 @@ class UserModel {
         orElse: () => UserRole.publico,
       ),
       nombreArtistico: json['nombreArtistico'] as String?,
+      avatarDataUrl: json['avatarDataUrl'] as String?,
     );
   }
 }

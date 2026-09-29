@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>BudSound usa la cámara para escanear el código QR del evento.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>BudSound usa tus fotos para elegir tu foto de perfil.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

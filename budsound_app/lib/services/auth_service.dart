@@ -5,9 +5,13 @@ import 'session_service.dart';
 
 /// Resultado unificado de un intento de autenticación.
 class AuthResult {
-  const AuthResult.ok({this.mensaje}) : exito = true, error = null;
+  const AuthResult.ok({this.mensaje})
+      : exito = true,
+        error = null;
 
-  const AuthResult.fail(this.error) : exito = false, mensaje = null;
+  const AuthResult.fail(this.error)
+      : exito = false,
+        mensaje = null;
 
   final bool exito;
   final String? mensaje;
@@ -129,6 +133,7 @@ class AuthService {
               : DateTime(2000, 1, 1)),
       rol: rol,
       nombreArtistico: userJson['nombreArtistico'] as String?,
+      avatarDataUrl: userJson['avatarDataUrl'] as String?,
     );
 
     await _session.guardarSesion(
@@ -142,5 +147,52 @@ class AuthService {
 
   bool _emailValido(String email) {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim());
+  }
+
+  /// Edita nombre/apellido y/o la foto de perfil. [quitarFoto] en true
+  /// borra la foto actual (manda `avatarDataUrl: null` al backend); si es
+  /// false y [avatarDataUrl] viene null, la foto actual no se toca.
+  Future<AuthResult> actualizarPerfil({
+    String? nombre,
+    String? apellido,
+    String? avatarDataUrl,
+    bool quitarFoto = false,
+  }) async {
+    final body = <String, dynamic>{};
+    if (nombre != null) body['nombre'] = nombre.trim();
+    if (apellido != null) body['apellido'] = apellido.trim();
+    if (quitarFoto) {
+      body['avatarDataUrl'] = null;
+    } else if (avatarDataUrl != null) {
+      body['avatarDataUrl'] = avatarDataUrl;
+    }
+
+    if (body.isEmpty) return const AuthResult.ok();
+
+    try {
+      final data = await _api.patch('/auth/me', body: body);
+      final userJson = data['user'] as Map<String, dynamic>;
+      final actual = _session.usuario;
+
+      final actualizado = UserModel(
+        id: userJson['id'] as String?,
+        nombre: userJson['nombre'] as String? ?? actual?.nombre ?? '',
+        apellido: userJson['apellido'] as String? ?? actual?.apellido ?? '',
+        email: userJson['email'] as String? ?? actual?.email ?? '',
+        fechaNacimiento: actual?.fechaNacimiento ?? DateTime(2000, 1, 1),
+        rol: UserRoleX.desdeBackend(userJson['role'] as String?),
+        nombreArtistico: userJson['nombreArtistico'] as String?,
+        avatarDataUrl: userJson['avatarDataUrl'] as String?,
+      );
+
+      await _session.actualizarUsuario(actualizado);
+      return const AuthResult.ok(mensaje: 'Perfil actualizado');
+    } on ApiException catch (e) {
+      return AuthResult.fail(e.message);
+    } catch (_) {
+      return const AuthResult.fail(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
   }
 }

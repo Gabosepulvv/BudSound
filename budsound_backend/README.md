@@ -59,6 +59,7 @@ src/
 ## Endpoints principales
 
 - `POST /api/auth/register` / `POST /api/auth/login` / `GET /api/auth/me`
+- `PATCH /api/auth/me` — edita nombre/apellido y/o la foto de perfil (`avatarDataUrl`, un data URL base64 de hasta ~2MB; `null` la quita)
 - `POST /api/events` (DJ) — crea evento y devuelve `code` para el QR
 - `GET /api/events/code/:code` — el Participante resuelve el QR escaneado
 - `GET /api/events/mine`, `PATCH /api/events/:id/close`, `GET /api/events/:id/summary`

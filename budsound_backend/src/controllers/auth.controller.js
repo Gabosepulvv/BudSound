@@ -25,8 +25,13 @@ function serializarUsuario(user) {
     nombre: user.nombre,
     apellido: user.apellido,
     nombreArtistico: user.nombre_artistico,
+    avatarDataUrl: user.avatar_data_url,
   };
 }
+
+// ~2MB de imagen en base64 pesa ~2.7MB como texto — de sobra para una foto
+// de perfil comprimida en el celular antes de subirla.
+const AVATAR_MAX_LENGTH = 2_800_000;
 
 const registrar = asyncHandler(async (req, res) => {
   const { email, password, role, nombre, apellido, nombreArtistico } = req.body;
@@ -83,4 +88,32 @@ const perfil = asyncHandler(async (req, res) => {
   res.json({ user: serializarUsuario(user) });
 });
 
-module.exports = { registrar, iniciarSesion, perfil };
+const actualizarPerfil = asyncHandler(async (req, res) => {
+  const { nombre, apellido, avatarDataUrl } = req.body;
+
+  if (nombre !== undefined && !nombre?.trim()) {
+    throw new ApiError(400, 'El nombre no puede quedar vacío.');
+  }
+  if (apellido !== undefined && !apellido?.trim()) {
+    throw new ApiError(400, 'El apellido no puede quedar vacío.');
+  }
+  if (avatarDataUrl !== undefined && avatarDataUrl !== null) {
+    if (!/^data:image\/(png|jpe?g|webp);base64,/.test(avatarDataUrl)) {
+      throw new ApiError(400, 'La foto de perfil debe ser una imagen PNG, JPEG o WEBP.');
+    }
+    if (avatarDataUrl.length > AVATAR_MAX_LENGTH) {
+      throw new ApiError(400, 'La foto de perfil es muy pesada. Usa una imagen más liviana.');
+    }
+  }
+
+  const actualizado = await userModel.actualizar(req.user.sub, {
+    nombre: nombre?.trim(),
+    apellido: apellido?.trim(),
+    avatarDataUrl,
+  });
+  if (!actualizado) throw new ApiError(404, 'Usuario no encontrado.');
+
+  res.json({ user: serializarUsuario(actualizado) });
+});
+
+module.exports = { registrar, iniciarSesion, perfil, actualizarPerfil };

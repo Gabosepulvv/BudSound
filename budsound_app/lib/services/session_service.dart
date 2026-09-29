@@ -98,6 +98,16 @@ class SessionService {
     }
   }
 
+  /// Actualiza el usuario en memoria y en disco (ej. tras editar el
+  /// perfil), sin tocar el JWT ni el resto de la sesión.
+  Future<void> actualizarUsuario(UserModel usuario) async {
+    _prefs ??= await SharedPreferences.getInstance();
+    _usuario = usuario;
+    _nombreVisible = usuario.nombreVisible;
+    await _prefs!.setString(_kUsuario, jsonEncode(usuario.toJson()));
+    await _prefs!.setString(_kNombre, _nombreVisible!);
+  }
+
   Future<void> guardarUltimoEventoCode(String code) async {
     _prefs ??= await SharedPreferences.getInstance();
     _ultimoEventoCode = code;
