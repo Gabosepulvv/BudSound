@@ -58,6 +58,12 @@ los Términos de Servicio de Spotify y YouTube. Por eso:
 - La búsqueda de canciones usa **iTunes Search API** solo para metadatos
   (título, artista, portada) — nunca para streaming/reproducción. La
   reproducción real sigue siendo desde el equipo del DJ, fuera de la app.
+- Esto incluye el preview de 30 s que expone iTunes: **la app nunca lo
+  reproduce**, ni en la búsqueda del Participante ni en ninguna otra
+  pantalla. Antes existía un reproductor de previews en una pestaña
+  "Descubrir" (antes de que existiera el flujo real de eventos) y se
+  eliminó por completo (`PreviewPlayer`, `TrackTile`, `ItunesService`,
+  `audioplayers`) precisamente por esta regla.
 
 ## Stack técnico
 
@@ -82,15 +88,33 @@ los Términos de Servicio de Spotify y YouTube. Por eso:
   desde el backend (`GET /api/songs/search`).
 - **Hosting:** Railway (capa gratuita). Aún no se ha creado el proyecto.
 - **QR:** `qr_flutter` para generarlo (DJ), `mobile_scanner` para leerlo
-  (Participante) — pinneado en `^4.0.1` por un bug de compilación de Dart en
-  Windows con rutas que tienen espacios, no por limitación del paquete (ver
-  "Problemas conocidos del entorno" abajo).
+  (Participante), con botón de linterna para lugares con poca luz —
+  pinneado en `^4.0.1` sin una razón fuerte para no subir de versión más
+  adelante (no es por ningún bug conocido del paquete).
 
 ## Arquitectura — regla clave
 
 Ninguna vista (Participante o DJ) accede directamente a la base de datos ni
 a APIs externas (MercadoPago, iTunes). **Todo pasa por el backend**, que es
 quien valida, autentica y orquesta esas integraciones.
+
+## Navegación de la app
+
+Tres pestañas después de iniciar sesión (`ShellScreen`), iguales para ambos
+roles en estructura pero con contenido distinto:
+
+- **Inicio** (`InicioScreen`) — panel de estado rápido, no un catálogo de
+  canciones. DJ: acceso directo a su evento activo (o aviso de que no ha
+  creado ninguno). Participante: acceso directo al evento que ya escaneó
+  (o aviso de que no ha escaneado ningún QR todavía). El código del último
+  evento del Participante se guarda localmente en el dispositivo
+  (`SessionService.ultimoEventoCode`) y se revalida contra el backend cada
+  vez que se abre esta pestaña — si el evento ya cerró, se limpia solo.
+- **En vivo** (`LiveScreen`) — donde pasa la acción real: el DJ crea
+  eventos y gestiona la cola (`DjEventsScreen` → `DjQueueScreen`); el
+  Participante escanea el QR o ingresa el código a mano
+  (`ParticipantJoinScreen` → `ParticipantEventScreen`).
+- **Perfil** (`ProfileScreen`) — datos de sesión y cerrar sesión.
 
 ## Alcance del MVP
 
@@ -228,17 +252,20 @@ Spotify/YouTube — hay que poder explicarla en la defensa:
 
 ## Problemas conocidos del entorno
 
-- **Windows + espacio en la ruta de usuario:** si el usuario de Windows
-  tiene un espacio en el nombre (ej. `C:\Users\Gabriel Sepulveda\...`),
-  `flutter run`/`flutter build` puede fallar con
-  `Building native assets for package:objective_c failed` — es un bug del
-  hook runner de Dart (no de este proyecto; ocurre incluso sin
-  `mobile_scanner`, viene de `path_provider_foundation`). No se soluciona
-  moviendo solo el proyecto a una ruta sin espacios: el SDK de Flutter
-  también debe estar en una ruta sin espacios. Soluciones sin tocar la
-  cuenta de Windows: `flutter upgrade` (puede que ya esté arreglado en una
-  versión más nueva), o mover tanto el SDK de Flutter como el proyecto a
-  rutas sin espacios (ej. `C:\dev\flutter`, `C:\dev\BudSound`).
+- **Windows + espacio en la ruta de usuario (RESUELTO en este equipo):** si
+  el usuario de Windows tiene un espacio en el nombre
+  (ej. `C:\Users\Gabriel Sepulveda\...`), `flutter run`/`flutter build`
+  puede fallar con `Building native assets for package:objective_c failed`
+  — un bug del hook runner de Dart (no de este proyecto) que se dispara
+  cuando algún paquete necesita compilar bindings nativos y la ruta tiene
+  espacios. En este repo venía de `audioplayers` (vía
+  `path_provider_foundation` → `objective_c`); al eliminar `audioplayers`
+  (ver riesgo de previews arriba) el problema desapareció por completo, sin
+  ni siquiera necesitar mover carpetas. Si vuelve a aparecer con algún
+  paquete nuevo: mover tanto el SDK de Flutter como el proyecto a rutas sin
+  espacios (ej. `C:\dev\flutter`, `C:\dev\BudSound`) lo soluciona sin tocar
+  la cuenta de Windows; `flutter upgrade` no lo arregla por sí solo
+  (probado).
 - **`flutter analyze` sí funciona** en este entorno (no depende de los
   hooks nativos); úsalo para verificar el código Dart cuando `flutter run`
   no esté disponible.

@@ -3,9 +3,9 @@ import 'api_client.dart';
 
 /// Búsqueda de canciones a través del backend (proxy de iTunes Search API).
 ///
-/// A diferencia de [ItunesService] (que llama a iTunes directo y se usa hoy
-/// en la pestaña Descubrir), este servicio respeta la regla de arquitectura
-/// "todo pasa por el backend" y es el que debe usar el flujo de solicitudes.
+/// Solo se usa para metadatos (título, artista, portada) — la app nunca
+/// reproduce un preview de la canción, solo la búsqueda para armar la
+/// solicitud (ver CLAUDE.md, "Decisión legal").
 class SongService {
   SongService({ApiClient? api}) : _api = api ?? ApiClient();
 
@@ -16,7 +16,8 @@ class SongService {
     if (limpio.isEmpty) return [];
 
     final data = await _api.get('/songs/search', query: {'q': limpio});
-    final resultados = (data['resultados'] as List).cast<Map<String, dynamic>>();
+    final resultados =
+        (data['resultados'] as List).cast<Map<String, dynamic>>();
 
     return resultados
         .map(

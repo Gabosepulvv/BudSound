@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/event_service.dart';
+import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/budsound_text_field.dart';
 import '../widgets/neon_gradient_button.dart';
@@ -32,6 +33,7 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
     setState(() => _cargando = true);
     try {
       final evento = await _eventService.buscarPorCodigo(codigo);
+      await SessionService.instance.guardarUltimoEventoCode(evento.code);
       if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(

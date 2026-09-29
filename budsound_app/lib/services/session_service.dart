@@ -15,6 +15,7 @@ class SessionService {
   static const _kRol = 'budsound.rol';
   static const _kNombre = 'budsound.nombre';
   static const _kUsuario = 'budsound.usuario';
+  static const _kUltimoEventoCode = 'budsound.ultimoEventoCode';
 
   SharedPreferences? _prefs;
   String? _jwt;
@@ -22,12 +23,19 @@ class SessionService {
   String? _nombreVisible;
   UserRole _rol = UserRole.publico;
   UserModel? _usuario;
+  String? _ultimoEventoCode;
 
   String? get jwt => _jwt;
   String? get email => _email;
   String? get nombreVisible => _nombreVisible;
   UserRole get rol => _rol;
   UserModel? get usuario => _usuario;
+
+  /// Código del último evento al que el Participante se unió (escaneado o
+  /// ingresado a mano) en este dispositivo. Se usa para el panel de Inicio
+  /// — no implica que el evento siga activo, hay que revalidarlo contra el
+  /// backend antes de mostrarlo.
+  String? get ultimoEventoCode => _ultimoEventoCode;
 
   bool get hasSession => _jwt != null && _jwt!.isNotEmpty;
 
@@ -48,6 +56,7 @@ class SessionService {
         jsonDecode(rawUser) as Map<String, dynamic>,
       );
     }
+    _ultimoEventoCode = _prefs?.getString(_kUltimoEventoCode);
   }
 
   /// Lee el token persistido (con delay de splash) y confirma si hay sesión.
@@ -89,6 +98,18 @@ class SessionService {
     }
   }
 
+  Future<void> guardarUltimoEventoCode(String code) async {
+    _prefs ??= await SharedPreferences.getInstance();
+    _ultimoEventoCode = code;
+    await _prefs!.setString(_kUltimoEventoCode, code);
+  }
+
+  Future<void> limpiarUltimoEventoCode() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    _ultimoEventoCode = null;
+    await _prefs!.remove(_kUltimoEventoCode);
+  }
+
   Future<void> cerrarSesion() async {
     _prefs ??= await SharedPreferences.getInstance();
     _jwt = null;
@@ -96,10 +117,12 @@ class SessionService {
     _nombreVisible = null;
     _rol = UserRole.publico;
     _usuario = null;
+    _ultimoEventoCode = null;
     await _prefs!.remove(_kJwt);
     await _prefs!.remove(_kEmail);
     await _prefs!.remove(_kRol);
     await _prefs!.remove(_kNombre);
     await _prefs!.remove(_kUsuario);
+    await _prefs!.remove(_kUltimoEventoCode);
   }
 }

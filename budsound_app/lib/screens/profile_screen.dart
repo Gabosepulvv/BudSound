@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../core/app_routes.dart';
 import '../models/user_role.dart';
-import '../services/preview_player.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glow_logo.dart';
@@ -13,7 +12,6 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   Future<void> _cerrarSesion(BuildContext context) async {
-    await PreviewPlayer.instance.detener();
     await SessionService.instance.cerrarSesion();
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil(

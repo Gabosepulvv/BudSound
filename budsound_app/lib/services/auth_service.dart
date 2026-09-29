@@ -41,6 +41,10 @@ class AuthService {
       return const AuthResult.ok(mensaje: 'Sesión iniciada');
     } on ApiException catch (e) {
       return AuthResult.fail(e.message);
+    } catch (_) {
+      return const AuthResult.fail(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
     }
   }
 
@@ -87,6 +91,10 @@ class AuthService {
       return const AuthResult.ok(mensaje: 'Cuenta creada');
     } on ApiException catch (e) {
       return AuthResult.fail(e.message);
+    } catch (_) {
+      return const AuthResult.fail(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
     }
   }
 
