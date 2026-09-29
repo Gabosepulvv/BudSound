@@ -27,6 +27,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
 
   List<SongRequestModel> _solicitudes = [];
   bool _cargando = true;
+  bool _conectado = true;
   final Set<String> _resolviendo = {};
 
   @override
@@ -37,6 +38,9 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
       ..conectar(
         onSolicitudCreada: _cargarCola,
         onSolicitudResuelta: _cargarCola,
+        onSolicitudReproducida: _cargarCola,
+        onConectado: () => setState(() => _conectado = true),
+        onDesconectado: () => setState(() => _conectado = false),
       );
     _cargarCola();
   }
@@ -61,7 +65,8 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     }
   }
 
-  Future<void> _resolver(SongRequestModel solicitud, {required bool aceptar}) async {
+  Future<void> _resolver(SongRequestModel solicitud,
+      {required bool aceptar}) async {
     setState(() => _resolviendo.add(solicitud.id));
     try {
       if (aceptar) {
@@ -80,19 +85,41 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     }
   }
 
+  /// Deja un registro con timestamp de que la canción sonó — es la
+  /// evidencia que se usaría para disputar un contracargo de MercadoPago.
+  Future<void> _marcarReproducida(SongRequestModel solicitud) async {
+    setState(() => _resolviendo.add(solicitud.id));
+    try {
+      await _requestService.marcarReproducida(solicitud.id);
+      await _cargarCola();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
+      );
+    } finally {
+      if (mounted) setState(() => _resolviendo.remove(solicitud.id));
+    }
+  }
+
   Future<void> _cerrarEvento() async {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('¿Cerrar evento?', style: TextStyle(color: AppColors.white)),
+        title: const Text('¿Cerrar evento?',
+            style: TextStyle(color: AppColors.white)),
         content: const Text(
           'Ya no se podrán recibir más solicitudes.',
           style: TextStyle(color: AppColors.muted),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Cerrar evento')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Cerrar evento')),
         ],
       ),
     );
@@ -106,7 +133,8 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: AppColors.surface,
-          title: const Text('Evento cerrado', style: TextStyle(color: AppColors.white)),
+          title: const Text('Evento cerrado',
+              style: TextStyle(color: AppColors.white)),
           content: Text(
             'Solicitudes aceptadas: ${resumen['solicitudes_aceptadas']}\n'
             'Recaudación neta: \$${resumen['recaudacion_neta_clp']} CLP',
@@ -143,7 +171,8 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
           if (_evento.activo)
             TextButton(
               onPressed: _cerrarEvento,
-              child: const Text('Cerrar evento', style: TextStyle(color: AppColors.danger)),
+              child: const Text('Cerrar evento',
+                  style: TextStyle(color: AppColors.danger)),
             ),
         ],
       ),
@@ -152,6 +181,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
+            if (!_conectado) _bannerSinConexion(),
             _tarjetaQr(),
             const SizedBox(height: 20),
             Text(
@@ -166,12 +196,15 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
             if (_cargando)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator(color: AppColors.neonBlue)),
+                child: Center(
+                    child:
+                        CircularProgressIndicator(color: AppColors.neonBlue)),
               )
             else if (pendientes.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
-                child: Text('Sin solicitudes pendientes.', style: TextStyle(color: AppColors.muted)),
+                child: Text('Sin solicitudes pendientes.',
+                    style: TextStyle(color: AppColors.muted)),
               )
             else
               ...pendientes.map(_tarjetaSolicitud),
@@ -179,13 +212,38 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
               const SizedBox(height: 20),
               const Text(
                 'Resueltas',
-                style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    color: AppColors.muted, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               ...resueltas.map(_tarjetaSolicitud),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _bannerSinConexion() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.danger),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.wifi_off_rounded, color: AppColors.danger, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Sin conexión — reconectando… la cola puede tardar en actualizarse.',
+              style: TextStyle(color: AppColors.danger, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -208,7 +266,8 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: QrImageView(data: _evento.code, size: 180, gapless: true),
+                child:
+                    QrImageView(data: _evento.code, size: 180, gapless: true),
               ),
             ),
             const SizedBox(height: 12),
@@ -255,19 +314,22 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                     solicitud.titulo,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                        color: AppColors.white, fontWeight: FontWeight.w700),
                   ),
                   Text(
                     solicitud.artista,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.lavender, fontSize: 12),
+                    style: const TextStyle(
+                        color: AppColors.lavender, fontSize: 12),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${solicitud.participanteNombreCompleto}'
                     '${solicitud.tienePropina ? ' · \$${solicitud.montoClp} CLP' : ''}',
-                    style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                    style:
+                        const TextStyle(color: AppColors.muted, fontSize: 12),
                   ),
                 ],
               ),
@@ -277,24 +339,43 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.neonBlue),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.neonBlue),
                     )
                   : Row(
                       children: [
                         IconButton(
                           onPressed: () => _resolver(solicitud, aceptar: false),
-                          icon: const Icon(Icons.close_rounded, color: AppColors.danger),
+                          icon: const Icon(Icons.close_rounded,
+                              color: AppColors.danger),
                         ),
                         IconButton(
                           onPressed: () => _resolver(solicitud, aceptar: true),
-                          icon: const Icon(Icons.check_circle_rounded, color: AppColors.neonBlue),
+                          icon: const Icon(Icons.check_circle_rounded,
+                              color: AppColors.neonBlue),
                         ),
                       ],
                     )
+            else if (solicitud.aceptada && !solicitud.reproducida)
+              resolviendo
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.neonBlue),
+                    )
+                  : TextButton.icon(
+                      onPressed: () => _marcarReproducida(solicitud),
+                      icon: const Icon(Icons.graphic_eq_rounded, size: 18),
+                      label: const Text('Reproducida'),
+                    )
             else
               Text(
-                solicitud.aceptada ? 'Aceptada' : 'Rechazada',
-                style: TextStyle(color: _colorEstado(solicitud), fontWeight: FontWeight.w700, fontSize: 12),
+                solicitud.aceptada ? 'Reproducida' : 'Rechazada',
+                style: TextStyle(
+                    color: _colorEstado(solicitud),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12),
               ),
           ],
         ),

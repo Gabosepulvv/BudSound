@@ -32,6 +32,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
   List<SongRequestModel> _misSolicitudes = [];
   final Set<String> _propinasPagadas = {};
   bool _buscando = false;
+  bool _conectado = true;
 
   @override
   void initState() {
@@ -41,6 +42,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       ..conectar(
         onSolicitudResuelta: _cargarMisSolicitudes,
         onPagoAprobado: _cargarMisSolicitudes,
+        onConectado: () => setState(() => _conectado = true),
+        onDesconectado: () => setState(() => _conectado = false),
       );
     _cargarMisSolicitudes();
   }
@@ -74,7 +77,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
 
   Future<void> _cargarMisSolicitudes() async {
     try {
-      final solicitudes = await _requestService.misSolicitudes(widget.evento.id);
+      final solicitudes =
+          await _requestService.misSolicitudes(widget.evento.id);
       if (!mounted) return;
       setState(() => _misSolicitudes = solicitudes);
     } catch (_) {
@@ -83,16 +87,24 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
   }
 
   Future<void> _pedirCancion(ItunesTrack pista) async {
-    final monto = await _elegirMonto(pista);
-    if (monto == null) return;
+    final eleccion = await _elegirMonto(pista);
+    if (eleccion == null) return;
+    final (monto, terminosAceptados) = eleccion;
 
     try {
-      await _requestService.crear(eventId: widget.evento.id, pista: pista, montoClp: monto);
+      await _requestService.crear(
+        eventId: widget.evento.id,
+        pista: pista,
+        montoClp: monto,
+        terminosAceptados: terminosAceptados,
+      );
       await _cargarMisSolicitudes();
       if (!mounted) return;
       _tabController.animateTo(1);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Solicitud enviada al DJ'), backgroundColor: AppColors.cobalt),
+        const SnackBar(
+            content: Text('Solicitud enviada al DJ'),
+            backgroundColor: AppColors.cobalt),
       );
     } catch (e) {
       if (!mounted) return;
@@ -102,62 +114,99 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     }
   }
 
-  Future<int?> _elegirMonto(ItunesTrack pista) async {
+  /// Devuelve (monto, aceptóTérminos) o null si canceló. Con propina, el
+  /// checkbox de Términos y Condiciones es obligatorio: una vez que el DJ
+  /// acepta la solicitud no hay devolución (ver CLAUDE.md, riesgo "El
+  /// participante pide la devolución del dinero").
+  Future<(int, bool)?> _elegirMonto(ItunesTrack pista) async {
     final controller = TextEditingController();
-    return showModalBottomSheet<int>(
+    var aceptaTerminos = false;
+    return showModalBottomSheet<(int, bool)>(
       context: context,
       backgroundColor: AppColors.surface,
       isScrollControlled: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              pista.trackName,
-              style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.w700, fontSize: 16),
-            ),
-            Text(pista.artistName, style: const TextStyle(color: AppColors.muted)),
-            const SizedBox(height: 16),
-            const Text(
-              'Propina opcional para el DJ (\$500 - \$20.000 CLP). '
-              'No garantiza que suene, es solo un incentivo.',
-              style: TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: AppColors.white),
-              decoration: const InputDecoration(
-                labelText: 'Monto en CLP (opcional)',
-                hintText: '0',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                pista.trackName,
+                style: const TextStyle(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16),
               ),
-            ),
-            const SizedBox(height: 16),
-            NeonGradientButton(
-              label: 'Enviar solicitud',
-              onPressed: () {
-                final monto = int.tryParse(controller.text.trim()) ?? 0;
-                if (monto != 0 && (monto < 500 || monto > 20000)) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('El monto debe ser entre \$500 y \$20.000 CLP.'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                  return;
-                }
-                Navigator.of(context).pop(monto);
-              },
-            ),
-          ],
+              Text(pista.artistName,
+                  style: const TextStyle(color: AppColors.muted)),
+              const SizedBox(height: 16),
+              const Text(
+                'Propina opcional para el DJ (\$500 - \$20.000 CLP). '
+                'No garantiza que suene, es solo un incentivo.',
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: AppColors.white),
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Monto en CLP (opcional)',
+                  hintText: '0',
+                ),
+              ),
+              if ((int.tryParse(controller.text.trim()) ?? 0) > 0) ...[
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: aceptaTerminos,
+                  onChanged: (v) => setState(() => aceptaTerminos = v ?? false),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: AppColors.neonBlue,
+                  title: const Text(
+                    'Entiendo que si el DJ acepta la propina, no hay devolución.',
+                    style: TextStyle(color: AppColors.lavender, fontSize: 13),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              NeonGradientButton(
+                label: 'Enviar solicitud',
+                onPressed: () {
+                  final monto = int.tryParse(controller.text.trim()) ?? 0;
+                  if (monto != 0 && (monto < 500 || monto > 20000)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'El monto debe ser entre \$500 y \$20.000 CLP.'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                    return;
+                  }
+                  if (monto > 0 && !aceptaTerminos) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Acepta los Términos y Condiciones para enviar una propina.'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.of(context).pop((monto, aceptaTerminos));
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -169,7 +218,9 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       if (!mounted) return;
       setState(() => _propinasPagadas.add(solicitud.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pago aprobado (simulado)'), backgroundColor: AppColors.cobalt),
+        const SnackBar(
+            content: Text('Pago aprobado (simulado)'),
+            backgroundColor: AppColors.cobalt),
       );
     } catch (e) {
       if (!mounted) return;
@@ -193,9 +244,36 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_tabBuscar(), _tabMisSolicitudes()],
+      body: Column(
+        children: [
+          if (!_conectado) _bannerSinConexion(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [_tabBuscar(), _tabMisSolicitudes()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bannerSinConexion() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      color: AppColors.danger.withOpacity(0.15),
+      child: const Row(
+        children: [
+          Icon(Icons.wifi_off_rounded, color: AppColors.danger, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Sin conexión — reconectando…',
+              style: TextStyle(color: AppColors.danger, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -222,12 +300,15 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           ),
         ),
         if (_buscando)
-          const Expanded(child: Center(child: CircularProgressIndicator(color: AppColors.neonBlue)))
+          const Expanded(
+              child: Center(
+                  child: CircularProgressIndicator(color: AppColors.neonBlue)))
         else
           Expanded(
             child: _resultados.isEmpty
                 ? const Center(
-                    child: Text('Busca una canción para pedirla.', style: TextStyle(color: AppColors.muted)),
+                    child: Text('Busca una canción para pedirla.',
+                        style: TextStyle(color: AppColors.muted)),
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -247,14 +328,17 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                               width: 48,
                               height: 48,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.album_rounded),
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.album_rounded),
                             ),
                           ),
                           title: Text(
                             pista.trackName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                                color: AppColors.white,
+                                fontWeight: FontWeight.w600),
                           ),
                           subtitle: Text(
                             pista.artistName,
@@ -262,7 +346,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: AppColors.muted),
                           ),
-                          trailing: const Icon(Icons.add_circle_outline_rounded, color: AppColors.neonBlue),
+                          trailing: const Icon(Icons.add_circle_outline_rounded,
+                              color: AppColors.neonBlue),
                         ),
                       );
                     },
@@ -275,7 +360,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
   Widget _tabMisSolicitudes() {
     if (_misSolicitudes.isEmpty) {
       return const Center(
-        child: Text('Todavía no has pedido ninguna canción.', style: TextStyle(color: AppColors.muted)),
+        child: Text('Todavía no has pedido ninguna canción.',
+            style: TextStyle(color: AppColors.muted)),
       );
     }
     return RefreshIndicator(
@@ -284,7 +370,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         itemCount: _misSolicitudes.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, index) => _tarjetaSolicitud(_misSolicitudes[index]),
+        itemBuilder: (context, index) =>
+            _tarjetaSolicitud(_misSolicitudes[index]),
       ),
     );
   }
@@ -313,7 +400,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                   solicitud.titulo,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                      color: AppColors.white, fontWeight: FontWeight.w700),
                 ),
                 Text(
                   solicitud.artista,
@@ -326,16 +414,19 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                   solicitud.pendiente
                       ? 'Esperando al DJ'
                       : solicitud.aceptada
-                          ? 'Aceptada'
+                          ? (solicitud.reproducida ? 'Reproducida' : 'Aceptada')
                           : 'Rechazada',
-                  style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+                  style: TextStyle(
+                      color: color, fontWeight: FontWeight.w700, fontSize: 12),
                 ),
               ],
             ),
           ),
           if (solicitud.aceptada && solicitud.tienePropina)
             _propinasPagadas.contains(solicitud.id)
-                ? const Text('Pagado', style: TextStyle(color: AppColors.neonBlue, fontWeight: FontWeight.w700))
+                ? const Text('Pagado',
+                    style: TextStyle(
+                        color: AppColors.neonBlue, fontWeight: FontWeight.w700))
                 : TextButton(
                     onPressed: () => _pagarPropina(solicitud),
                     child: const Text('Pagar propina'),

@@ -14,6 +14,7 @@ class SongRequestModel {
     required this.createdAt,
     this.artworkUrl,
     this.resolvedAt,
+    this.reproducidaAt,
     this.participanteNombre,
     this.participanteApellido,
   });
@@ -29,6 +30,7 @@ class SongRequestModel {
   final String status; // 'PENDIENTE' | 'ACEPTADA' | 'RECHAZADA'
   final DateTime createdAt;
   final DateTime? resolvedAt;
+  final DateTime? reproducidaAt;
   final String? participanteNombre;
   final String? participanteApellido;
 
@@ -36,6 +38,7 @@ class SongRequestModel {
   bool get pendiente => status == 'PENDIENTE';
   bool get aceptada => status == 'ACEPTADA';
   bool get rechazada => status == 'RECHAZADA';
+  bool get reproducida => reproducidaAt != null;
 
   String get participanteNombreCompleto {
     final nombre = [participanteNombre, participanteApellido]
@@ -59,6 +62,9 @@ class SongRequestModel {
       createdAt: DateTime.parse(json['created_at'] as String),
       resolvedAt: json['resolved_at'] != null
           ? DateTime.parse(json['resolved_at'] as String)
+          : null,
+      reproducidaAt: json['reproducida_at'] != null
+          ? DateTime.parse(json['reproducida_at'] as String)
           : null,
       participanteNombre: json['participante_nombre'] as String?,
       participanteApellido: json['participante_apellido'] as String?,

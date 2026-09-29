@@ -34,7 +34,8 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
       final evento = await _eventService.buscarPorCodigo(codigo);
       if (!mounted) return;
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ParticipantEventScreen(evento: evento)),
+        MaterialPageRoute(
+            builder: (_) => ParticipantEventScreen(evento: evento)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -61,11 +62,15 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.qr_code_scanner_rounded, size: 72, color: AppColors.neonBlue),
+            const Icon(Icons.qr_code_scanner_rounded,
+                size: 72, color: AppColors.neonBlue),
             const SizedBox(height: 16),
             const Text(
               'Únete a un evento',
-              style: TextStyle(color: AppColors.white, fontSize: 20, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             const Text(
@@ -101,8 +106,24 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
   }
 }
 
-class _QrScannerScreen extends StatelessWidget {
+/// Pantalla de escaneo con linterna manual — discotecas y lugares con luces
+/// en movimiento pueden hacer fallar la cámara sin ella (ver CLAUDE.md,
+/// riesgo "Escaneo de QR con poca luz").
+class _QrScannerScreen extends StatefulWidget {
   const _QrScannerScreen();
+
+  @override
+  State<_QrScannerScreen> createState() => _QrScannerScreenState();
+}
+
+class _QrScannerScreenState extends State<_QrScannerScreen> {
+  final _controller = MobileScannerController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,8 +132,23 @@ class _QrScannerScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text('Escanea el QR del evento'),
+        actions: [
+          ValueListenableBuilder<TorchState>(
+            valueListenable: _controller.torchState,
+            builder: (context, estado, _) => IconButton(
+              onPressed: _controller.toggleTorch,
+              icon: Icon(
+                estado == TorchState.on
+                    ? Icons.flash_on_rounded
+                    : Icons.flash_off_rounded,
+              ),
+              tooltip: 'Linterna',
+            ),
+          ),
+        ],
       ),
       body: MobileScanner(
+        controller: _controller,
         onDetect: (capture) {
           final valor = capture.barcodes.firstOrNull?.rawValue;
           if (valor != null && valor.isNotEmpty) {

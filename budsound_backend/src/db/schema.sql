@@ -40,9 +40,19 @@ CREATE TABLE song_requests (
   artista           TEXT NOT NULL,
   artwork_url       TEXT,
   monto_clp         INTEGER NOT NULL DEFAULT 0 CHECK (monto_clp = 0 OR monto_clp BETWEEN 500 AND 20000),
+  -- El participante debe aceptar explícitamente que no hay devolución una
+  -- vez que el DJ acepta (riesgo "El participante pide la devolución del
+  -- dinero" en CLAUDE.md). Obligatorio solo cuando hay propina.
+  terminos_aceptados BOOLEAN NOT NULL DEFAULT false
+                      CHECK (monto_clp = 0 OR terminos_aceptados = true),
   status            request_status NOT NULL DEFAULT 'PENDIENTE',
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  resolved_at       TIMESTAMPTZ
+  resolved_at       TIMESTAMPTZ,
+  -- Timestamp que el DJ marca cuando efectivamente suena la canción.
+  -- Es la evidencia interna para disputar un contracargo de MercadoPago
+  -- (riesgo "Contracargo" en CLAUDE.md) — "toqué la canción" es difícil
+  -- de probar sin un registro con hora exacta.
+  reproducida_at    TIMESTAMPTZ
 );
 
 CREATE TABLE transactions (

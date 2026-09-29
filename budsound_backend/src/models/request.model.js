@@ -1,12 +1,30 @@
 const { pool } = require('../config/db');
 
-async function crear({ eventId, participanteId, itunesTrackId, titulo, artista, artworkUrl, montoClp }) {
+async function crear({
+  eventId,
+  participanteId,
+  itunesTrackId,
+  titulo,
+  artista,
+  artworkUrl,
+  montoClp,
+  terminosAceptados,
+}) {
   const { rows } = await pool.query(
     `INSERT INTO song_requests
-       (event_id, participante_id, itunes_track_id, titulo, artista, artwork_url, monto_clp)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (event_id, participante_id, itunes_track_id, titulo, artista, artwork_url, monto_clp, terminos_aceptados)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [eventId, participanteId, itunesTrackId, titulo, artista, artworkUrl || null, montoClp || 0],
+    [
+      eventId,
+      participanteId,
+      itunesTrackId,
+      titulo,
+      artista,
+      artworkUrl || null,
+      montoClp || 0,
+      Boolean(terminosAceptados),
+    ],
   );
   return rows[0];
 }
@@ -54,10 +72,24 @@ async function resolver(id, status) {
   return rows[0] || null;
 }
 
+// Evidencia con timestamp de que la canción sonó de verdad — es lo que se
+// usa para disputar un contracargo de MercadoPago (ver CLAUDE.md, riesgo
+// "Contracargo").
+async function marcarReproducida(id) {
+  const { rows } = await pool.query(
+    `UPDATE song_requests SET reproducida_at = now()
+     WHERE id = $1 AND status = 'ACEPTADA' AND reproducida_at IS NULL
+     RETURNING *`,
+    [id],
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   crear,
   buscarPorId,
   listarPorEvento,
   listarPorEventoYParticipante,
   resolver,
+  marcarReproducida,
 };

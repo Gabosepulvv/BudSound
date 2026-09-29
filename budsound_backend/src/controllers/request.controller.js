@@ -10,7 +10,7 @@ const MONTO_MIN = 500;
 const MONTO_MAX = 20000;
 
 const crear = asyncHandler(async (req, res) => {
-  const { itunesTrackId, titulo, artista, artworkUrl, montoClp } = req.body;
+  const { itunesTrackId, titulo, artista, artworkUrl, montoClp, terminosAceptados } = req.body;
   const event = await eventModel.buscarPorId(req.params.eventId);
 
   if (!event) throw new ApiError(404, 'Evento no encontrado.');
@@ -23,6 +23,12 @@ const crear = asyncHandler(async (req, res) => {
   if (monto !== 0 && (monto < MONTO_MIN || monto > MONTO_MAX)) {
     throw new ApiError(400, `El monto debe ser entre $${MONTO_MIN} y $${MONTO_MAX} CLP.`);
   }
+  // Con propina, el participante debe aceptar explícitamente que no hay
+  // devolución una vez que el DJ acepte (ver CLAUDE.md, riesgo "El
+  // participante pide la devolución del dinero").
+  if (monto > 0 && !terminosAceptados) {
+    throw new ApiError(400, 'Debes aceptar los Términos y Condiciones para enviar una propina.');
+  }
 
   const request = await requestModel.crear({
     eventId: event.id,
@@ -32,6 +38,7 @@ const crear = asyncHandler(async (req, res) => {
     artista: artista.trim(),
     artworkUrl,
     montoClp: monto,
+    terminosAceptados: monto > 0 ? true : Boolean(terminosAceptados),
   });
 
   req.io.to(`event:${event.id}`).emit('request:created', { request });
@@ -96,4 +103,30 @@ async function resolverSolicitud(req, res, nuevoStatus) {
 const aceptar = asyncHandler((req, res) => resolverSolicitud(req, res, 'ACEPTADA'));
 const rechazar = asyncHandler((req, res) => resolverSolicitud(req, res, 'RECHAZADA'));
 
-module.exports = { crear, listarPorEvento, misSolicitudesEnEvento, aceptar, rechazar };
+// Evidencia con timestamp de que la canción sonó — ver CLAUDE.md, riesgo
+// "Contracargo": es lo único que se puede aportar como prueba interna si
+// MercadoPago abre una disputa por un pago ya capturado.
+const marcarReproducida = asyncHandler(async (req, res) => {
+  const request = await requestModel.buscarPorId(req.params.id);
+  if (!request) throw new ApiError(404, 'Solicitud no encontrada.');
+
+  const event = await eventModel.buscarPorId(request.event_id);
+  if (event.dj_id !== req.user.sub) throw new ApiError(403, 'No eres el dueño de este evento.');
+
+  const actualizada = await requestModel.marcarReproducida(request.id);
+  if (!actualizada) {
+    throw new ApiError(409, 'Solo se puede marcar como reproducida una solicitud aceptada, una vez.');
+  }
+
+  req.io.to(`event:${event.id}`).emit('request:played', { request: actualizada });
+  res.json({ request: actualizada });
+});
+
+module.exports = {
+  crear,
+  listarPorEvento,
+  misSolicitudesEnEvento,
+  aceptar,
+  rechazar,
+  marcarReproducida,
+};

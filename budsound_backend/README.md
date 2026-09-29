@@ -65,6 +65,7 @@ src/
 - `GET /api/events/:eventId/requests` (DJ) — cola de solicitudes
 - `GET /api/events/:eventId/requests/mine` (Participante) — solo sus propias solicitudes en ese evento
 - `PATCH /api/requests/:id/accept` / `PATCH /api/requests/:id/reject` (DJ)
+- `PATCH /api/requests/:id/played` (DJ) — marca la canción como reproducida (evidencia con timestamp para un eventual contracargo)
 - `GET /api/songs/search?q=...` — proxy de iTunes Search API
 - `GET /api/requests/:id/payment` (Participante) — estado de su transacción
 - `POST /api/requests/:id/payment/simulate-approval` (Participante) — simula la aprobación del pago mientras no haya credenciales reales de MercadoPago (se elimina cuando se integre el gateway real)
@@ -85,3 +86,8 @@ y `request:resolved` para mantener la cola sincronizada sin hacer polling.
   y actualizar `transactions.status` según el pago real.
 - Mientras no haya credenciales, `POST /api/requests/:id/payment/simulate-approval`
   permite demostrar el flujo completo aceptar → pagar → aprobado.
+- El flujo de pago real debe cambiar de forma: autorizar al crear la
+  solicitud (no al aceptar), capturar si el DJ acepta, cancelar si rechaza
+  — la autorización expira sola a los 7 días. Falta el cron que limpie
+  solicitudes colgadas antes de ese plazo. Ver CLAUDE.md, riesgo
+  "Autorización de pago vs. captura".
