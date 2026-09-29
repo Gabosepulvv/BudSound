@@ -181,6 +181,24 @@ cerrarlo.
 tipo de cosa que un DJ real necesitaría después del evento — saber cuánto
 recaudó no es información de un solo uso.
 
+## 11. Dónde se guarda la foto de perfil (pensando en Railway)
+
+**Problema:** la forma obvia de guardar una foto subida por el usuario es
+como archivo en el disco del servidor. Pero Railway, en su capa gratuita,
+tiene almacenamiento efímero — cualquier archivo que se guarde así
+desaparece en el próximo despliegue o reinicio del servidor.
+
+**Qué se hizo:** la foto de perfil se guarda directo en la fila del
+usuario en PostgreSQL, como texto (base64), no como archivo aparte. Pesa
+más en la base de datos, pero sobrevive a cualquier redeploy sin depender
+de un servicio externo de almacenamiento (que tampoco entraba en el
+alcance ni el presupuesto del proyecto).
+
+**Por qué importa para la defensa:** es un ejemplo de una decisión técnica
+tomada pensando específicamente en dónde se va a alojar la app (Railway
+free tier), no en abstracto — la misma decisión sería distinta si
+estuvieran desplegando en un servidor con disco persistente.
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más

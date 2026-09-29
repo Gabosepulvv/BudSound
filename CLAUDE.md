@@ -269,6 +269,31 @@ Spotify/YouTube — hay que poder explicarla en la defensa:
 - **`flutter analyze` sí funciona** en este entorno (no depende de los
   hooks nativos); úsalo para verificar el código Dart cuando `flutter run`
   no esté disponible.
+- **Compilar para Android falla con `Unable to establish loopback
+  connection` (RESUELTO):** el build de Gradle/Kotlin necesita abrir un
+  socket local (`localhost`) para hablar consigo mismo, y el Firewall de
+  Windows puede bloquear esa conexión para un proceso Java nuevo (recién
+  instalado) porque nadie contestó la ventana de "permitir acceso" — sobre
+  todo si el build se lanza desde un proceso en segundo plano que no puede
+  mostrar esa ventana. Solución: `org.gradle.daemon=false` en
+  `android/gradle.properties` (ya aplicado en este repo) evita que el
+  daemon de Gradle necesite ese socket; si aparece en otro paquete de la
+  cadena de build (Kotlin, AAPT2), correr `flutter run` desde una terminal
+  interactiva propia (no en segundo plano) para poder aceptar la ventana
+  de Windows Firewall cuando aparezca.
+- **Se necesita JDK 17+ para compilar Android:** el proyecto usa Gradle
+  9 / AGP 9 (`android/gradle/wrapper/gradle-wrapper.properties`,
+  `android/settings.gradle.kts`), que no corren con Java 8. Si `flutter
+  run -d <android>` falla con `JAVA_HOME is set to an invalid directory`
+  o simplemente con una versión de Java muy vieja, instalar Eclipse
+  Temurin 17 (`winget install EclipseAdoptium.Temurin.17.JDK`) y apuntar
+  `JAVA_HOME` ahí.
+- **Android SDK sin `cmdline-tools`:** en esta máquina el SDK de Android
+  está instalado pero sin `avdmanager`/`sdkmanager` (Android Studio no está
+  instalado). Para crear un emulador nuevo hay que armar la carpeta del AVD
+  a mano en `%USERPROFILE%\.android\avd\` copiando la estructura de un AVD
+  existente y apuntando a una imagen de sistema `x86_64` (no `x86` — las
+  versiones recientes de Flutter ya no soportan emuladores de 32 bits).
 
 ## Convenciones (ir completando a medida que el equipo decida)
 
