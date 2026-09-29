@@ -165,6 +165,22 @@ con la misma función de seguridad, sin necesidad de compilar nada.
 `npm audit` en el backend, y el despliegue en Railway queda más simple y
 predecible.
 
+## 10. El resumen de recaudación no se pierde al salir de la pantalla
+
+**Problema:** al cerrar un evento, el DJ veía el resumen (solicitudes
+aceptadas, recaudación neta) una sola vez, en un mensaje que aparecía justo
+en ese momento. Si salía de esa pantalla — por ejemplo para revisar otra
+cosa — no había forma de volver a consultarlo.
+
+**Qué se hizo:** el resumen completo (recaudación bruta, comisión de
+BudSound, recaudación neta) queda visible de forma permanente en la propia
+pantalla del evento mientras esté cerrado, no solo en el momento de
+cerrarlo.
+
+**Por qué importa para la defensa:** un detalle chico, pero es justo el
+tipo de cosa que un DJ real necesitaría después del evento — saber cuánto
+recaudó no es información de un solo uso.
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más
