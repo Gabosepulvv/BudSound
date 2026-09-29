@@ -381,7 +381,9 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
         ? AppColors.neonBlue
         : solicitud.rechazada
             ? AppColors.danger
-            : AppColors.border;
+            : solicitud.cancelada
+                ? AppColors.muted
+                : AppColors.border;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -415,7 +417,9 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                       ? 'Esperando al DJ'
                       : solicitud.aceptada
                           ? (solicitud.reproducida ? 'Reproducida' : 'Aceptada')
-                          : 'Rechazada',
+                          : solicitud.cancelada
+                              ? 'Cancelada (sin respuesta a tiempo)'
+                              : 'Rechazada',
                   style: TextStyle(
                       color: color, fontWeight: FontWeight.w700, fontSize: 12),
                 ),

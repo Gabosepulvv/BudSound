@@ -27,7 +27,7 @@ class SongRequestModel {
   final String artista;
   final String? artworkUrl;
   final int montoClp;
-  final String status; // 'PENDIENTE' | 'ACEPTADA' | 'RECHAZADA'
+  final String status; // 'PENDIENTE' | 'ACEPTADA' | 'RECHAZADA' | 'CANCELADA'
   final DateTime createdAt;
   final DateTime? resolvedAt;
   final DateTime? reproducidaAt;
@@ -39,6 +39,11 @@ class SongRequestModel {
   bool get aceptada => status == 'ACEPTADA';
   bool get rechazada => status == 'RECHAZADA';
   bool get reproducida => reproducidaAt != null;
+
+  /// El sistema la canceló sola (evento cerrado o venció el plazo sin
+  /// respuesta del DJ) — distinto de [rechazada], que es una decisión
+  /// activa del DJ. Ver CLAUDE.md, riesgo "Autorización de pago vs. captura".
+  bool get cancelada => status == 'CANCELADA';
 
   String get participanteNombreCompleto {
     final nombre = [participanteNombre, participanteApellido]

@@ -85,6 +85,26 @@ async function marcarReproducida(id) {
   return rows[0] || null;
 }
 
+// Cancela solicitudes que quedaron "colgadas": el evento ya cerró, o pasaron
+// más de [timeoutHours] sin que el DJ respondiera. Nunca depende de que
+// alguien lo haga a mano (ver CLAUDE.md, riesgo "Autorización de pago vs.
+// captura" — la vigencia real de una autorización de MercadoPago es de 7
+// días, pero acá se usa un plazo mucho más corto porque no tiene sentido
+// dejar a alguien esperando toda la noche una respuesta que nunca llegó).
+async function cancelarSolicitudesColgadas(timeoutHours) {
+  const { rows } = await pool.query(
+    `UPDATE song_requests sr
+     SET status = 'CANCELADA', resolved_at = now()
+     FROM events e
+     WHERE sr.event_id = e.id
+       AND sr.status = 'PENDIENTE'
+       AND (e.status = 'CERRADO' OR sr.created_at < now() - make_interval(hours => $1))
+     RETURNING sr.id, sr.event_id`,
+    [timeoutHours],
+  );
+  return rows;
+}
+
 module.exports = {
   crear,
   buscarPorId,
@@ -92,4 +112,5 @@ module.exports = {
   listarPorEventoYParticipante,
   resolver,
   marcarReproducida,
+  cancelarSolicitudesColgadas,
 };

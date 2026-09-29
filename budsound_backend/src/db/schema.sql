@@ -7,7 +7,10 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TYPE user_role AS ENUM ('PARTICIPANTE', 'DJ');
 CREATE TYPE event_status AS ENUM ('ACTIVO', 'CERRADO');
-CREATE TYPE request_status AS ENUM ('PENDIENTE', 'ACEPTADA', 'RECHAZADA');
+-- CANCELADA: el sistema la cerró sola (evento cerrado o vencimiento de
+-- horas sin respuesta), a diferencia de RECHAZADA que es una decisión
+-- activa del DJ (ver CLAUDE.md, riesgo "Autorización de pago vs. captura").
+CREATE TYPE request_status AS ENUM ('PENDIENTE', 'ACEPTADA', 'RECHAZADA', 'CANCELADA');
 CREATE TYPE transaction_status AS ENUM ('PENDIENTE', 'APROBADA', 'RECHAZADA');
 
 CREATE TABLE users (

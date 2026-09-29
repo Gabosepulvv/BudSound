@@ -371,7 +371,11 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                     )
             else
               Text(
-                solicitud.aceptada ? 'Reproducida' : 'Rechazada',
+                solicitud.aceptada
+                    ? 'Reproducida'
+                    : solicitud.cancelada
+                        ? 'Cancelada'
+                        : 'Rechazada',
                 style: TextStyle(
                     color: _colorEstado(solicitud),
                     fontWeight: FontWeight.w700,
@@ -386,6 +390,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
   Color _colorEstado(SongRequestModel solicitud) {
     if (solicitud.aceptada) return AppColors.neonBlue;
     if (solicitud.rechazada) return AppColors.danger;
+    if (solicitud.cancelada) return AppColors.muted;
     return AppColors.border;
   }
 }

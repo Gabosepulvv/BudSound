@@ -1,0 +1,44 @@
+const requestModel = require('../models/request.model');
+const env = require('../config/env');
+
+/// Revisa solicitudes PENDIENTE colgadas y las cancela automáticamente
+/// (ver CLAUDE.md, riesgo "Autorización de pago vs. captura"). Notifica a
+/// cada sala de evento por Socket.io para que las UI conectadas se
+/// actualicen sin esperar un refresh manual.
+async function limpiarSolicitudesColgadas(io) {
+  const canceladas = await requestModel.cancelarSolicitudesColgadas(env.requestTimeoutHours);
+
+  if (canceladas.length === 0) return 0;
+
+  const porEvento = new Map();
+  for (const { id, event_id: eventId } of canceladas) {
+    if (!porEvento.has(eventId)) porEvento.set(eventId, []);
+    porEvento.get(eventId).push(id);
+  }
+
+  for (const [eventId, ids] of porEvento) {
+    io.to(`event:${eventId}`).emit('request:resolved', { requestIds: ids });
+  }
+
+  console.log(`Limpieza automática: ${canceladas.length} solicitud(es) cancelada(s) por estar colgada(s).`);
+  return canceladas.length;
+}
+
+/// Arranca el barrido periódico. Corre una vez al iniciar y luego cada
+/// [env.cleanupIntervalMinutes] minutos — nunca depende de que alguien lo
+/// dispare a mano.
+function iniciarLimpiezaPeriodica(io) {
+  const intervaloMs = env.cleanupIntervalMinutes * 60 * 1000;
+
+  limpiarSolicitudesColgadas(io).catch((error) => {
+    console.error('Error en la limpieza inicial de solicitudes colgadas:', error.message);
+  });
+
+  return setInterval(() => {
+    limpiarSolicitudesColgadas(io).catch((error) => {
+      console.error('Error en la limpieza periódica de solicitudes colgadas:', error.message);
+    });
+  }, intervaloMs);
+}
+
+module.exports = { limpiarSolicitudesColgadas, iniciarLimpiezaPeriodica };

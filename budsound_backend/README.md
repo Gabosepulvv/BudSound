@@ -53,6 +53,7 @@ src/
   controllers/
   routes/
   sockets/    # salas de Socket.io por evento (event:<id>)
+  jobs/       # barridos periódicos (limpieza de solicitudes colgadas)
 ```
 
 ## Endpoints principales
@@ -77,6 +78,17 @@ El cliente se conecta a Socket.io con `auth: { token: <jwt> }`, emite
 `event:join`/`event:leave` con el id del evento, y escucha `request:created`
 y `request:resolved` para mantener la cola sincronizada sin hacer polling.
 
+## Limpieza automática de solicitudes colgadas
+
+`src/jobs/cleanupRequests.js` corre un barrido cada `CLEANUP_INTERVAL_MINUTES`
+(default 15 min, y una vez al arrancar el servidor): cancela toda solicitud
+`PENDIENTE` cuyo evento ya cerró, o que lleva más de `REQUEST_TIMEOUT_HOURS`
+(default 6h) sin que el DJ responda. Pasa a estado `CANCELADA` (distinto de
+`RECHAZADA`, que es una decisión activa del DJ) y avisa por Socket.io
+(`request:resolved`) a quien esté viendo ese evento. Nunca depende de que
+alguien lo dispare a mano — ver CLAUDE.md, riesgo "Autorización de pago vs.
+captura".
+
 ## Pendiente
 
 - Integración real de MercadoPago cuando existan credenciales de sandbox
@@ -88,6 +100,7 @@ y `request:resolved` para mantener la cola sincronizada sin hacer polling.
   permite demostrar el flujo completo aceptar → pagar → aprobado.
 - El flujo de pago real debe cambiar de forma: autorizar al crear la
   solicitud (no al aceptar), capturar si el DJ acepta, cancelar si rechaza
-  — la autorización expira sola a los 7 días. Falta el cron que limpie
-  solicitudes colgadas antes de ese plazo. Ver CLAUDE.md, riesgo
-  "Autorización de pago vs. captura".
+  — la autorización expira sola a los 7 días. El cron de limpieza ya existe
+  (ver arriba) pero hoy solo cancela en nuestra base de datos; cuando haya
+  integración real, debe además cancelar la autorización en MercadoPago.
+  Ver CLAUDE.md, riesgo "Autorización de pago vs. captura".

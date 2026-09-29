@@ -20,4 +20,8 @@ module.exports = {
     publicKey: process.env.MERCADOPAGO_PUBLIC_KEY || '',
   },
   commissionRate: Number(process.env.BUDSOUND_COMMISSION_RATE) || 0.08,
+  // Ver CLAUDE.md, riesgo "Autorización de pago vs. captura": una solicitud
+  // pendiente no puede quedar colgada para siempre.
+  requestTimeoutHours: Number(process.env.REQUEST_TIMEOUT_HOURS) || 6,
+  cleanupIntervalMinutes: Number(process.env.CLEANUP_INTERVAL_MINUTES) || 15,
 };
