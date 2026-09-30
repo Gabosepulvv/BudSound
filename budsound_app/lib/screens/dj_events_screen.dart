@@ -26,7 +26,13 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
   }
 
   void _recargar() {
-    setState(() => _eventosFuture = _eventService.misEventos());
+    // Cuerpo de bloque a propósito: `setState(() => _eventosFuture = ...)`
+    // hace que el closure "devuelva" el Future de la asignación, y
+    // setState lanza un assert en tiempo de ejecución si su callback
+    // devuelve un Future (piensa que olvidaste un await).
+    setState(() {
+      _eventosFuture = _eventService.misEventos();
+    });
   }
 
   Future<void> _crearEvento() async {
@@ -102,7 +108,8 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                 style: TextStyle(color: AppColors.muted, fontSize: 13),
               ),
               const SizedBox(height: 14),
-              NeonGradientButton(label: 'Crear evento', onPressed: _crearEvento),
+              NeonGradientButton(
+                  label: 'Crear evento', onPressed: _crearEvento),
             ],
           ),
         ),
@@ -124,7 +131,9 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                       children: [
                         Text('${snapshot.error}', textAlign: TextAlign.center),
                         const SizedBox(height: 12),
-                        TextButton(onPressed: _recargar, child: const Text('Reintentar')),
+                        TextButton(
+                            onPressed: _recargar,
+                            child: const Text('Reintentar')),
                       ],
                     ),
                   ),
@@ -180,7 +189,9 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  evento.activo ? Icons.qr_code_2_rounded : Icons.lock_outline_rounded,
+                  evento.activo
+                      ? Icons.qr_code_2_rounded
+                      : Icons.lock_outline_rounded,
                   color: AppColors.neonBlue,
                 ),
               ),
@@ -199,7 +210,8 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                     const SizedBox(height: 2),
                     Text(
                       'Código ${evento.code} · ${evento.activo ? 'Activo' : 'Cerrado'}',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                      style:
+                          const TextStyle(color: AppColors.muted, fontSize: 12),
                     ),
                   ],
                 ),
