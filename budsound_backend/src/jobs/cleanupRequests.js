@@ -1,4 +1,6 @@
 const requestModel = require('../models/request.model');
+const transactionModel = require('../models/transaction.model');
+const mercadopagoService = require('../services/mercadopago.service');
 const env = require('../config/env');
 
 /// Revisa solicitudes PENDIENTE colgadas y las cancela automáticamente
@@ -9,6 +11,26 @@ async function limpiarSolicitudesColgadas(io) {
   const canceladas = await requestModel.cancelarSolicitudesColgadas(env.requestTimeoutHours);
 
   if (canceladas.length === 0) return 0;
+
+  // Cada solicitud colgada con propina tiene una autorización de
+  // MercadoPago retenida desde que se creó (captura diferida) — si no se
+  // libera acá, el dinero del Participante queda retenido hasta que la
+  // autorización expire sola a los 7 días.
+  if (mercadopagoService.credencialesListas()) {
+    for (const { id: requestId } of canceladas) {
+      const transaction = await transactionModel.buscarPorRequestId(requestId);
+      if (transaction?.status !== 'AUTORIZADA') continue;
+      try {
+        await mercadopagoService.cancelarPago(transaction.mp_payment_id);
+        await transactionModel.actualizarStatus(transaction.id, 'RECHAZADA');
+      } catch (error) {
+        console.error(
+          `No se pudo liberar la autorización de MercadoPago de la solicitud ${requestId}:`,
+          error.message,
+        );
+      }
+    }
+  }
 
   const porEvento = new Map();
   for (const { id, event_id: eventId } of canceladas) {

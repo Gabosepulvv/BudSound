@@ -34,6 +34,14 @@ async function buscarPorId(id) {
   return rows[0] || null;
 }
 
+// Solo se usa cuando la solicitud se creó pero MercadoPago rechazó la
+// autorización del pago acto seguido — nadie llegó a verla (no se emitió
+// por socket todavía), así que se puede borrar sin dejar rastro en vez de
+// quedar en un estado raro de "solicitud sin pago que debería tener uno".
+async function eliminar(id) {
+  await pool.query('DELETE FROM song_requests WHERE id = $1', [id]);
+}
+
 async function listarPorEvento(eventId, { status } = {}) {
   const params = [eventId];
   let query = `
@@ -108,6 +116,7 @@ async function cancelarSolicitudesColgadas(timeoutHours) {
 module.exports = {
   crear,
   buscarPorId,
+  eliminar,
   listarPorEvento,
   listarPorEventoYParticipante,
   resolver,

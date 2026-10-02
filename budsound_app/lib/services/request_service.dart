@@ -1,4 +1,3 @@
-import '../models/itunes_track.dart';
 import '../models/song_request_model.dart';
 import '../models/transaction_model.dart';
 import 'api_client.dart';
@@ -9,20 +8,27 @@ class RequestService {
 
   final ApiClient _api;
 
+  /// Recibe los campos de la pista directamente (en vez de un [ItunesTrack])
+  /// para poder reintentar una solicitud guardada en [PendingRequestsStore]
+  /// sin reconstruir un objeto de pista falso.
+  ///
   /// [terminosAceptados] es obligatorio cuando [montoClp] > 0 — el backend
   /// rechaza la propina si no viene en true (ver CLAUDE.md, riesgo "El
   /// participante pide la devolución del dinero").
   Future<SongRequestModel> crear({
     required String eventId,
-    required ItunesTrack pista,
+    required int itunesTrackId,
+    required String titulo,
+    required String artista,
+    required String artworkUrl,
     required int montoClp,
     bool terminosAceptados = false,
   }) async {
     final data = await _api.post('/events/$eventId/requests', body: {
-      'itunesTrackId': pista.trackId,
-      'titulo': pista.trackName,
-      'artista': pista.artistName,
-      'artworkUrl': pista.artworkUrl,
+      'itunesTrackId': itunesTrackId,
+      'titulo': titulo,
+      'artista': artista,
+      'artworkUrl': artworkUrl,
       'montoClp': montoClp,
       'terminosAceptados': terminosAceptados,
     });

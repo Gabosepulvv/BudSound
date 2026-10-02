@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const env = require('./config/env');
 const routes = require('./routes');
+const { paginaCheckout } = require('./controllers/checkout.controller');
 const { notFoundHandler, errorHandler } = require('./middleware/error.middleware');
 
 function crearApp(io) {
@@ -22,6 +23,11 @@ function crearApp(io) {
     req.io = io;
     next();
   });
+
+  // Página HTML servida para el WebView de la app (no es parte de la API
+  // JSON) — ahí vive el formulario de tarjeta de MercadoPago para tokenizar
+  // el pago de una propina (ver checkout.controller.js).
+  app.post('/pay/checkout', paginaCheckout);
 
   app.use('/api', routes);
 

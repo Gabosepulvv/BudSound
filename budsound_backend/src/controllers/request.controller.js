@@ -10,7 +10,17 @@ const MONTO_MIN = 500;
 const MONTO_MAX = 20000;
 
 const crear = asyncHandler(async (req, res) => {
-  const { itunesTrackId, titulo, artista, artworkUrl, montoClp, terminosAceptados } = req.body;
+  const {
+    itunesTrackId,
+    titulo,
+    artista,
+    artworkUrl,
+    montoClp,
+    terminosAceptados,
+    cardToken,
+    paymentMethodId,
+    installments,
+  } = req.body;
   const event = await eventModel.buscarPorId(req.params.eventId);
 
   if (!event) throw new ApiError(404, 'Evento no encontrado.');
@@ -29,6 +39,10 @@ const crear = asyncHandler(async (req, res) => {
   if (monto > 0 && !terminosAceptados) {
     throw new ApiError(400, 'Debes aceptar los Términos y Condiciones para enviar una propina.');
   }
+  const pagoReal = monto > 0 && mercadopagoService.credencialesListas();
+  if (pagoReal && !cardToken) {
+    throw new ApiError(400, 'Falta el método de pago para la propina.');
+  }
 
   const request = await requestModel.crear({
     eventId: event.id,
@@ -41,9 +55,41 @@ const crear = asyncHandler(async (req, res) => {
     terminosAceptados: monto > 0 ? true : Boolean(terminosAceptados),
   });
 
+  let transaction = null;
+  if (pagoReal) {
+    // Autoriza (retiene, no cobra) el pago antes de confirmar la solicitud
+    // — ver CLAUDE.md, riesgo "Autorización de pago vs. captura". Si
+    // MercadoPago rechaza la tarjeta, la solicitud no llega a existir para
+    // el DJ: se borra y se avisa al Participante por qué falló.
+    const comisionClp = Math.round(monto * env.commissionRate);
+    const montoNetoClp = monto - comisionClp;
+    try {
+      const pago = await mercadopagoService.autorizarPago({
+        requestId: request.id,
+        montoClp: monto,
+        descripcion: `Propina para ${event.nombre}: ${request.titulo}`,
+        token: cardToken,
+        paymentMethodId,
+        installments,
+        payerEmail: req.user.email,
+      });
+      transaction = await transactionModel.crear({
+        requestId: request.id,
+        montoBrutoClp: monto,
+        comisionClp,
+        montoNetoClp,
+        mpPaymentId: String(pago.id),
+        status: 'AUTORIZADA',
+      });
+    } catch (error) {
+      await requestModel.eliminar(request.id);
+      throw new ApiError(402, `El pago no se pudo autorizar: ${error.message}`);
+    }
+  }
+
   req.io.to(`event:${event.id}`).emit('request:created', { request });
 
-  res.status(201).json({ request });
+  res.status(201).json({ request, transaction });
 });
 
 const listarPorEvento = asyncHandler(async (req, res) => {
@@ -73,31 +119,44 @@ async function resolverSolicitud(req, res, nuevoStatus) {
   const resuelta = await requestModel.resolver(request.id, nuevoStatus);
   if (!resuelta) throw new ApiError(409, 'La solicitud ya fue resuelta.');
 
-  let pago = null;
-  if (nuevoStatus === 'ACEPTADA' && resuelta.monto_clp > 0) {
+  let transaction = null;
+
+  if (mercadopagoService.credencialesListas()) {
+    // La propina ya se autorizó al crear la solicitud (ver `crear` arriba)
+    // — acá solo se captura (cobra de verdad) o se libera, nunca se crea.
+    transaction = await transactionModel.buscarPorRequestId(resuelta.id);
+    if (transaction && transaction.status === 'AUTORIZADA') {
+      if (nuevoStatus === 'ACEPTADA') {
+        await mercadopagoService.capturarPago(transaction.mp_payment_id);
+        transaction = await transactionModel.actualizarStatus(transaction.id, 'APROBADA');
+      } else {
+        await mercadopagoService.cancelarPago(transaction.mp_payment_id);
+        transaction = await transactionModel.actualizarStatus(transaction.id, 'RECHAZADA');
+      }
+    }
+  } else if (nuevoStatus === 'ACEPTADA' && resuelta.monto_clp > 0) {
+    // Sin credenciales reales (ej. otro integrante del equipo sin su propio
+    // .env de sandbox): flujo simulado antiguo para poder demostrar el MVP.
     const comisionClp = Math.round(resuelta.monto_clp * env.commissionRate);
     const montoNetoClp = resuelta.monto_clp - comisionClp;
 
-    pago = await mercadopagoService.crearPreferenciaDePago({
+    const pago = await mercadopagoService.crearPreferenciaDePago({
       requestId: resuelta.id,
       montoClp: resuelta.monto_clp,
       descripcion: `Propina para ${event.nombre}: ${resuelta.titulo}`,
     });
 
-    const transaction = await transactionModel.crear({
+    transaction = await transactionModel.crear({
       requestId: resuelta.id,
       montoBrutoClp: resuelta.monto_clp,
       comisionClp,
       montoNetoClp,
       mpPaymentId: pago.preferenceId,
     });
-
-    req.io.to(`event:${event.id}`).emit('request:resolved', { request: resuelta, transaction });
-  } else {
-    req.io.to(`event:${event.id}`).emit('request:resolved', { request: resuelta });
   }
 
-  res.json({ request: resuelta, pago });
+  req.io.to(`event:${event.id}`).emit('request:resolved', { request: resuelta, transaction });
+  res.json({ request: resuelta, pago: transaction });
 }
 
 const aceptar = asyncHandler((req, res) => resolverSolicitud(req, res, 'ACEPTADA'));

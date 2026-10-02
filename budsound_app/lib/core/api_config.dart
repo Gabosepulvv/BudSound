@@ -17,6 +17,10 @@ class ApiConfig {
 
   static String get socketUrl => 'http://$_host:$_puerto';
 
+  /// Página HTML (no JSON) que arma el formulario de tarjeta de MercadoPago
+  /// para pagar una propina — se abre en un WebView, nunca en la API.
+  static String get checkoutUrl => '$socketUrl/pay/checkout';
+
   static String get _host {
     if (kIsWeb) return _hostDesarrollo;
     if (Platform.isAndroid) return '10.0.2.2';

@@ -47,15 +47,49 @@ const simularAprobacion = asyncHandler(async (req, res) => {
   res.json({ transaction: actualizada });
 });
 
-// Receptor del webhook real de MercadoPago. Mercado Pago espera 200 aunque
-// la notificación no se pueda procesar (para no reintentar indefinidamente).
+// Receptor del webhook real de MercadoPago. MercadoPago espera 200 aunque
+// la notificación no se pueda procesar (para no reintentar indefinidamente)
+// — por eso todos los caminos de abajo terminan en sendStatus(200), incluso
+// los que no hicieron nada.
 //
-// TODO(equipo): cuando existan credenciales, validar la notificación contra
-// la API de MercadoPago (GET /v1/payments/:id) antes de confiar en el body,
-// mapear external_reference -> transactions.id, y actualizar status según
-// el estado real del pago (approved/rejected/pending).
+// No se confía en el body de la notificación (puede venir manipulado): solo
+// trae el id del pago, y con eso se pide el estado real a la API de
+// MercadoPago antes de actualizar nada.
 const webhook = asyncHandler(async (req, res) => {
-  console.log('Webhook de MercadoPago recibido (integración pendiente):', req.body);
+  const tipo = req.query.type || req.body?.type || req.body?.topic;
+  const paymentId = req.query['data.id'] || req.body?.data?.id || req.body?.resource;
+
+  if (tipo !== 'payment' || !paymentId || !mercadopagoService.credencialesListas()) {
+    return res.sendStatus(200);
+  }
+
+  try {
+    const pago = await mercadopagoService.obtenerPago(paymentId);
+    const transaction = await transactionModel.buscarPorMpPaymentId(String(pago.id));
+    if (!transaction) return res.sendStatus(200);
+
+    const nuevoStatus =
+      pago.status === 'approved'
+        ? 'APROBADA'
+        : pago.status === 'authorized'
+        ? 'AUTORIZADA'
+        : ['cancelled', 'rejected'].includes(pago.status)
+        ? 'RECHAZADA'
+        : transaction.status;
+
+    if (nuevoStatus !== transaction.status) {
+      const actualizada = await transactionModel.actualizarStatus(transaction.id, nuevoStatus);
+      const request = await requestModel.buscarPorId(transaction.request_id);
+      if (request) {
+        req.io
+          .to(`event:${request.event_id}`)
+          .emit('payment:approved', { requestId: request.id, transaction: actualizada });
+      }
+    }
+  } catch (error) {
+    console.error('Error procesando webhook de MercadoPago:', error.message);
+  }
+
   res.sendStatus(200);
 });
 

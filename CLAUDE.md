@@ -75,15 +75,18 @@ los Términos de Servicio de Spotify y YouTube. Por eso:
   solicitudes, transacciones).
 - **Tiempo real:** Socket.io, para la cola de solicitudes en vivo. Una sala
   por evento (`event:<id>`).
-- **Pagos:** MercadoPago (Checkout API / Checkout Pro). **Cambiaron desde
-  Transbank Webpay** — cualquier código, doc o mockup viejo que mencione
-  Transbank está desactualizado, ya no aplica.
-  - Aún no tienen credenciales de sandbox de MercadoPago — la integración
-    debe quedar con variables de entorno placeholder
-    (`MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`) fáciles de
-    reemplazar cuando las obtengan.
-  - Mientras tanto, `POST /api/requests/:id/payment/simulate-approval`
-    simula la aprobación para poder demostrar el flujo completo en el MVP.
+- **Pagos:** MercadoPago (Payments API directa, con Card Payment Brick en
+  el frontend — no Checkout Pro, porque Checkout Pro no expone captura
+  diferida). **Cambiaron desde Transbank Webpay** — cualquier código, doc
+  o mockup viejo que mencione Transbank está desactualizado, ya no aplica.
+  - Ya tienen credenciales de sandbox (cuenta de prueba única, Chile) en el
+    `.env` local de quien las generó — no están en el repo
+    (`.env` está en `.gitignore`). Cada integrante que no tenga las suyas
+    propias en su `.env` local sigue viendo el flujo simulado (abajo).
+  - `MERCADOPAGO_ACCESS_TOKEN` / `MERCADOPAGO_PUBLIC_KEY` en `.env`
+    (`.env.example` trae placeholders). Mientras digan `PLACEHOLDER`,
+    `POST /api/requests/:id/payment/simulate-approval` simula la
+    aprobación para poder demostrar el flujo sin credenciales reales.
 - **API musical:** iTunes Search API (gratuita, sin key), consumida solo
   desde el backend (`GET /api/songs/search`).
 - **Hosting:** Railway (capa gratuita). Aún no se ha creado el proyecto.
@@ -156,12 +159,29 @@ ese plazo o el dinero queda en un limbo.
 - **Captura parcial** (cobrar menos del monto retenido) solo funciona con
   Visa, Mastercard, Amex y Cabal — para el MVP, capturar el monto completo
   o cancelar, sin montos parciales.
-- **Estado actual del código:** todavía no implementado (depende de tener
-  credenciales reales de MercadoPago para diseñar contra la API real). El
-  flujo demo actual (`simulate-approval`) es un placeholder explícito, no
-  el flujo final. Cuando lleguen las credenciales, rediseñar
-  `mercadopago.service.js` para autorizar en el momento de crear la
-  solicitud (no al aceptar) y agregar el cron de limpieza.
+- **Estado actual del código:** implementado contra la API real de
+  MercadoPago (cuenta de prueba única, sin split de pagos todavía — ver
+  Opción A más abajo). `mercadopago.service.js` expone `autorizarPago`
+  (captura diferida, `capture: false`), `capturarPago` y `cancelarPago`,
+  todo vía `fetch` directo a `/v1/payments` (sin SDK). El participante
+  tokeniza la tarjeta en un WebView (`budsound_app/lib/screens/
+  mp_checkout_screen.dart`) que carga una página servida por el propio
+  backend (`POST /pay/checkout`, `checkout.controller.js`) con el Card
+  Payment Brick de MercadoPago.js — el número de tarjeta nunca toca el
+  backend de BudSound. Esa página es quien llama a
+  `POST /events/:id/requests` con el token ya generado, que autoriza el
+  pago y recién ahí crea la solicitud (si MercadoPago rechaza la tarjeta,
+  la solicitud no llega a existir). El DJ acepta -> se captura
+  (`request.controller.js`); rechaza o el cron la cancela por colgada ->
+  se libera. El flujo `simulate-approval` sigue vivo como fallback solo
+  para integrantes del equipo que no tengan sus propias credenciales
+  reales en su `.env` local (`mercadopagoService.credencialesListas()`
+  decide cuál camino tomar).
+- **Pendiente:** split de pagos real (Opción A, OAuth marketplace por DJ)
+  — sigue sin implementar, documentado como decisión tomada pero no
+  construida (ver riesgo "¿A quién le llega la plata primero?" más abajo).
+  Con la cuenta única de prueba actual no hay forma de probarlo (haría
+  falta una cuenta de MercadoPago de prueba por cada DJ).
 
 ### 2. Congestión de red y desconexión en el evento
 
@@ -171,9 +191,13 @@ probando en la casa con dos celulares.
 
 - **Mitigación:** reconexión automática de Socket.io (ya configurada en
   `budsound_app/lib/services/event_socket.dart`) más un indicador visual de
-  "sin conexión" en las pantallas de evento. Falta: cola local temporal en
-  el celular para no perder una solicitud creada durante un corte de
-  conexión de pocos segundos.
+  "sin conexión" en las pantallas de evento. Además, si el Participante
+  envía una solicitud justo durante un corte, se guarda localmente
+  (`PendingRequestsStore`, `SharedPreferences`) y se reintenta sola apenas
+  el socket reporta reconexión — no depende de que la persona se dé cuenta
+  y la reenvíe a mano. Solo se encola cuando falla la conexión; si el
+  backend responde con un rechazo real (`ApiException`, ej. monto fuera de
+  rango) no se reintenta, porque no es un problema de red.
 - **Antes de la presentación final:** probar con varios dispositivos
   conectados a la vez a la misma red, no solo dos celulares.
 

@@ -26,4 +26,11 @@ async function buscarPorRequestId(requestId) {
   return rows[0] || null;
 }
 
-module.exports = { crear, actualizarStatus, buscarPorRequestId };
+// Usado por el webhook de MercadoPago para mapear una notificación (que
+// solo trae el id del pago) de vuelta a la transacción de BudSound.
+async function buscarPorMpPaymentId(mpPaymentId) {
+  const { rows } = await pool.query('SELECT * FROM transactions WHERE mp_payment_id = $1', [mpPaymentId]);
+  return rows[0] || null;
+}
+
+module.exports = { crear, actualizarStatus, buscarPorRequestId, buscarPorMpPaymentId };

@@ -11,7 +11,12 @@ CREATE TYPE event_status AS ENUM ('ACTIVO', 'CERRADO');
 -- horas sin respuesta), a diferencia de RECHAZADA que es una decisión
 -- activa del DJ (ver CLAUDE.md, riesgo "Autorización de pago vs. captura").
 CREATE TYPE request_status AS ENUM ('PENDIENTE', 'ACEPTADA', 'RECHAZADA', 'CANCELADA');
-CREATE TYPE transaction_status AS ENUM ('PENDIENTE', 'APROBADA', 'RECHAZADA');
+-- AUTORIZADA: MercadoPago retuvo el monto pero todavía no se cobró
+-- (captura diferida, ver CLAUDE.md riesgo "Autorización de pago vs.
+-- captura") — pasa a APROBADA cuando el DJ acepta (se captura) o a
+-- RECHAZADA cuando rechaza, se vence el plazo, o el pago fue rechazado de
+-- entrada por MercadoPago.
+CREATE TYPE transaction_status AS ENUM ('PENDIENTE', 'AUTORIZADA', 'APROBADA', 'RECHAZADA');
 
 CREATE TABLE users (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),

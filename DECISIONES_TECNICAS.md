@@ -199,6 +199,65 @@ tomada pensando específicamente en dónde se va a alojar la app (Railway
 free tier), no en abstracto — la misma decisión sería distinta si
 estuvieran desplegando en un servidor con disco persistente.
 
+## 12. Cola local de solicitudes cuando se corta la conexión
+
+**Problema:** en el evento, cientos de celulares comparten la misma red y
+los cortes de un par de segundos son esperables (ver riesgo "Congestión de
+red"). La reconexión automática del socket ya evita perder la cola en
+tiempo real, pero si el Participante aprieta "Enviar solicitud" justo en
+ese corte, el `POST` fallaba y la solicitud se perdía sin que quedara
+ningún rastro — la persona tenía que darse cuenta y volver a intentarlo.
+
+**Qué se hizo:** `ParticipantEventScreen` distingue dos tipos de falla al
+crear una solicitud: si el backend respondió pero la rechazó
+(`ApiException` — ej. monto fuera de rango, términos no aceptados), se
+muestra el error y no se reintenta, porque reintentar no cambia el
+resultado. Si en cambio no hubo respuesta del backend (corte de conexión),
+la solicitud se guarda en el celular (`PendingRequestsStore`, usando
+`SharedPreferences`) y aparece en "Mis solicitudes" con un indicador de
+"Sin conexión — se enviará sola". Se reintenta automáticamente apenas el
+socket del evento reporta que reconectó, y también al deslizar para
+refrescar la pantalla.
+
+**Por qué importa para la defensa:** mismo principio que el cron de
+limpieza de solicitudes colgadas (ver #1) — diseñar para que el sistema se
+autocorrija en vez de depender de que la persona se dé cuenta de que algo
+falló y lo reintente a mano, mitigando en el código un riesgo que ya se
+había identificado y documentado en la Fase 1.
+
+## 13. Integración real de MercadoPago sin exponer la tarjeta a BudSound
+
+**Problema:** con credenciales de sandbox ya disponibles, había que
+reemplazar el placeholder (`simulate-approval`) por el flujo real descrito
+en el riesgo "Autorización de pago vs. captura": autorizar (retener) el
+pago al crear la solicitud, capturarlo (cobrar) recién cuando el DJ acepta,
+o liberarlo si rechaza o se cancela sola. El problema es que eso requiere
+tokenizar una tarjeta de crédito — y el número de tarjeta nunca debe pasar
+por el backend de BudSound (requisito de PCI, no una elección de diseño).
+
+**Qué se hizo:** la tokenización ocurre en un WebView (`McpCheckoutScreen`
+en Flutter) que carga una página HTML servida por el propio backend
+(`POST /pay/checkout`) con el "Card Payment Brick" de MercadoPago.js. Esa
+página corre con la Public Key, tokeniza la tarjeta en el navegador embebido
+y es ella misma quien llama a `POST /events/:id/requests` con el token ya
+generado — el backend nunca ve un número de tarjeta, solo un token de un
+solo uso. Como el WebView es parte de la app (no un navegador público), la
+página recibe el JWT de sesión del Participante para poder hacer esa
+llamada autenticada.
+
+Se eligió la Payments API directa (con el Brick) en vez de Checkout Pro
+(la opción más simple y habitual) porque Checkout Pro no expone control de
+captura diferida — procesa el cobro de inmediato dentro de su propia
+página, lo que no permite separar "autorizar" de "cobrar" como exige el
+riesgo ya documentado.
+
+**Por qué importa para la defensa:** conecta tres decisiones que ya
+estaban documentadas por separado (captura diferida, nunca tocar datos de
+tarjeta, cuenta única sin split todavía) en una implementación concreta, y
+explica por qué se descartó la opción de integración más simple
+(Checkout Pro) a favor de una más compleja pero que sí cumple el diseño
+que el equipo ya había decidido.
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más
