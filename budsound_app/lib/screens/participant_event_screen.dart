@@ -10,7 +10,9 @@ import '../services/pending_requests_store.dart';
 import '../services/request_service.dart';
 import '../services/song_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/fade_slide_in.dart';
 import '../widgets/neon_gradient_button.dart';
+import '../widgets/pressable_scale.dart';
 import 'mp_checkout_screen.dart';
 
 /// Buscar canción y pedirla (con propina opcional) dentro de un evento, y
@@ -403,38 +405,44 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final pista = _resultados[index];
-                      return Material(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(14),
-                        child: ListTile(
+                      return FadeSlideIn(
+                        delay: Duration(milliseconds: 35 * index),
+                        child: PressableScale(
                           onTap: () => _pedirCancion(pista),
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              pista.artworkUrl,
-                              width: 48,
-                              height: 48,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.album_rounded),
+                          child: Material(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(14),
+                            child: ListTile(
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  pista.artworkUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const Icon(Icons.album_rounded),
+                                ),
+                              ),
+                              title: Text(
+                                pista.trackName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: AppColors.white,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: Text(
+                                pista.artistName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: AppColors.muted),
+                              ),
+                              trailing: const Icon(
+                                  Icons.add_circle_outline_rounded,
+                                  color: AppColors.neonBlue),
                             ),
                           ),
-                          title: Text(
-                            pista.trackName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Text(
-                            pista.artistName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppColors.muted),
-                          ),
-                          trailing: const Icon(Icons.add_circle_outline_rounded,
-                              color: AppColors.neonBlue),
                         ),
                       );
                     },
@@ -461,11 +469,18 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
         itemCount: _pendientesLocales.length + _misSolicitudes.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
+          final delay = Duration(milliseconds: 40 * index);
           if (index < _pendientesLocales.length) {
-            return _tarjetaPendienteLocal(_pendientesLocales[index]);
+            return FadeSlideIn(
+              delay: delay,
+              child: _tarjetaPendienteLocal(_pendientesLocales[index]),
+            );
           }
-          return _tarjetaSolicitud(
-              _misSolicitudes[index - _pendientesLocales.length]);
+          return FadeSlideIn(
+            delay: delay,
+            child: _tarjetaSolicitud(
+                _misSolicitudes[index - _pendientesLocales.length]),
+          );
         },
       ),
     );

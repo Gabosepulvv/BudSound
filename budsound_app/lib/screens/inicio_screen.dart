@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../services/event_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/fade_slide_in.dart';
 import '../widgets/glow_logo.dart';
 import '../widgets/neon_gradient_button.dart';
 import 'dj_queue_screen.dart';
@@ -133,9 +134,9 @@ class _InicioScreenState extends State<InicioScreen> {
                         CircularProgressIndicator(color: AppColors.neonBlue)),
               )
             else if (_evento != null)
-              _tarjetaEventoActivo(_evento!)
+              FadeSlideIn(child: _tarjetaEventoActivo(_evento!))
             else
-              _tarjetaVacia(),
+              FadeSlideIn(child: _tarjetaVacia()),
           ],
         ),
       ),

@@ -2,6 +2,35 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 
+/// Transición propia (fade + deslizamiento sutil hacia arriba) para que
+/// cambiar de pantalla se sienta más vivo que el slide plano por defecto —
+/// se aplica igual en todas las plataformas para que la sensación sea
+/// consistente sin importar dónde corra la app.
+class _FadeThroughTransitionsBuilder extends PageTransitionsBuilder {
+  const _FadeThroughTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curva = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+    return FadeTransition(
+      opacity: curva,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.04),
+          end: Offset.zero,
+        ).animate(curva),
+        child: child,
+      ),
+    );
+  }
+}
+
 /// Tema Material 3 oscuro de Budsound.
 class AppTheme {
   AppTheme._();
@@ -24,6 +53,15 @@ class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
       fontFamily: 'Roboto',
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _FadeThroughTransitionsBuilder(),
+          TargetPlatform.iOS: _FadeThroughTransitionsBuilder(),
+          TargetPlatform.macOS: _FadeThroughTransitionsBuilder(),
+          TargetPlatform.windows: _FadeThroughTransitionsBuilder(),
+          TargetPlatform.linux: _FadeThroughTransitionsBuilder(),
+        },
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,

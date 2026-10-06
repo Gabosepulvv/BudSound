@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// CTA principal con degradado azul neón → cobalto.
-class NeonGradientButton extends StatelessWidget {
+/// CTA principal con degradado azul neón → cobalto. Se achica levemente y
+/// atenúa su glow al presionar, además del ripple de Material.
+class NeonGradientButton extends StatefulWidget {
   const NeonGradientButton({
     super.key,
     required this.label,
@@ -16,57 +17,82 @@ class NeonGradientButton extends StatelessWidget {
   final bool loading;
 
   @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null && !loading;
+  State<NeonGradientButton> createState() => _NeonGradientButtonState();
+}
 
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: LinearGradient(
-            colors: enabled
-                ? const [AppColors.neonBlue, AppColors.cobalt]
-                : [
-                    AppColors.neonBlue.withOpacity(0.35),
-                    AppColors.cobalt.withOpacity(0.35),
-                  ],
-          ),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: AppColors.neonBlue.withOpacity(0.45),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : const [],
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: enabled ? onPressed : null,
-            child: Center(
-              child: loading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        color: AppColors.white,
+class _NeonGradientButtonState extends State<NeonGradientButton> {
+  bool _presionado = false;
+
+  void _setPresionado(bool valor) {
+    final enabled = widget.onPressed != null && !widget.loading;
+    if (!enabled) return;
+    setState(() => _presionado = valor);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null && !widget.loading;
+
+    return GestureDetector(
+      onTapDown: (_) => _setPresionado(true),
+      onTapUp: (_) => _setPresionado(false),
+      onTapCancel: () => _setPresionado(false),
+      child: AnimatedScale(
+        scale: _presionado ? 0.97 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        child: SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(
+                colors: enabled
+                    ? const [AppColors.neonBlue, AppColors.cobalt]
+                    : [
+                        AppColors.neonBlue.withOpacity(0.35),
+                        AppColors.cobalt.withOpacity(0.35),
+                      ],
+              ),
+              boxShadow: enabled
+                  ? [
+                      BoxShadow(
+                        color: AppColors.neonBlue
+                            .withOpacity(_presionado ? 0.25 : 0.45),
+                        blurRadius: _presionado ? 10 : 18,
+                        offset: const Offset(0, 8),
                       ),
-                    )
-                  : Text(
-                      label,
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
+                    ]
+                  : const [],
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: enabled ? widget.onPressed : null,
+                child: Center(
+                  child: widget.loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : Text(
+                          widget.label,
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                ),
+              ),
             ),
           ),
         ),

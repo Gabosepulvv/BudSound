@@ -7,6 +7,7 @@ import '../services/event_service.dart';
 import '../services/event_socket.dart';
 import '../services/request_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/fade_slide_in.dart';
 
 /// Cola en vivo de un evento: QR para que se unan, y aceptar/rechazar
 /// solicitudes a medida que llegan por Socket.io.
@@ -177,10 +178,13 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             if (!_conectado) _bannerSinConexion(),
-            _tarjetaQr(),
+            FadeSlideIn(child: _tarjetaQr()),
             if (!_evento.activo && _resumen != null) ...[
               const SizedBox(height: 16),
-              _tarjetaResumen(_resumen!),
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 80),
+                child: _tarjetaResumen(_resumen!),
+              ),
             ],
             const SizedBox(height: 20),
             Text(
@@ -206,7 +210,12 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                     style: TextStyle(color: AppColors.muted)),
               )
             else
-              ...pendientes.map(_tarjetaSolicitud),
+              ...pendientes.asMap().entries.map(
+                    (e) => FadeSlideIn(
+                      delay: Duration(milliseconds: 50 * e.key),
+                      child: _tarjetaSolicitud(e.value),
+                    ),
+                  ),
             if (resueltas.isNotEmpty) ...[
               const SizedBox(height: 20),
               const Text(
@@ -215,7 +224,12 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                     color: AppColors.muted, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              ...resueltas.map(_tarjetaSolicitud),
+              ...resueltas.asMap().entries.map(
+                    (e) => FadeSlideIn(
+                      delay: Duration(milliseconds: 50 * e.key),
+                      child: _tarjetaSolicitud(e.value),
+                    ),
+                  ),
             ],
           ],
         ),
