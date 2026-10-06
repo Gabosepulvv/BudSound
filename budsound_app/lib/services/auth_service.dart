@@ -1,21 +1,45 @@
+import 'package:google_sign_in/google_sign_in.dart';
+
+import '../core/google_auth_config.dart';
+import '../models/google_perfil_pendiente.dart';
 import '../models/user_model.dart';
 import '../models/user_role.dart';
 import 'api_client.dart';
 import 'session_service.dart';
 
-/// Resultado unificado de un intento de autenticación.
+/// Resultado unificado de un intento de autenticación. [necesitaRolGoogle]
+/// es el único caso especial: Google confirmó la identidad, pero la cuenta
+/// todavía no existe en BudSound y hace falta elegir rol (Participante/DJ)
+/// antes de poder crearla — ver [AuthService.completarRegistroGoogle].
 class AuthResult {
   const AuthResult.ok({this.mensaje})
       : exito = true,
-        error = null;
+        error = null,
+        necesitaRolGoogle = false,
+        perfilGoogle = null,
+        idTokenGoogle = null;
 
   const AuthResult.fail(this.error)
       : exito = false,
-        mensaje = null;
+        mensaje = null,
+        necesitaRolGoogle = false,
+        perfilGoogle = null,
+        idTokenGoogle = null;
+
+  const AuthResult.necesitaRolGoogle({
+    required this.perfilGoogle,
+    required this.idTokenGoogle,
+  })  : exito = false,
+        mensaje = null,
+        error = null,
+        necesitaRolGoogle = true;
 
   final bool exito;
   final String? mensaje;
   final String? error;
+  final bool necesitaRolGoogle;
+  final GooglePerfilPendiente? perfilGoogle;
+  final String? idTokenGoogle;
 }
 
 /// Autenticación real contra el backend de BudSound (JWT).
@@ -26,6 +50,13 @@ class AuthService {
 
   final SessionService _session;
   final ApiClient _api;
+
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: const ['email'],
+    serverClientId: GoogleAuthConfig.serverClientId.isEmpty
+        ? null
+        : GoogleAuthConfig.serverClientId,
+  );
 
   Future<AuthResult> iniciarSesion({
     required String email,
@@ -52,13 +83,82 @@ class AuthService {
     }
   }
 
-  /// El backend aún no expone OAuth con Google; se deja como aviso explícito
-  /// en vez de simular un login que no existe de verdad.
+  /// Primer paso del login con Google: abre el selector de cuenta nativo,
+  /// consigue un idToken y lo manda al backend sin `role`. Si la cuenta ya
+  /// existe, vuelve logueado (igual que [iniciarSesion]). Si es nueva,
+  /// vuelve con [AuthResult.necesitaRolGoogle] — hay que llamar a
+  /// [completarRegistroGoogle] con el rol elegido para terminar.
   Future<AuthResult> iniciarSesionConGoogle() async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    return const AuthResult.fail(
-      'El inicio de sesión con Google todavía no está disponible.',
-    );
+    if (!GoogleAuthConfig.configurado) {
+      return const AuthResult.fail(
+        'El inicio de sesión con Google todavía no está configurado en esta app.',
+      );
+    }
+
+    try {
+      final cuenta = await _googleSignIn.signIn();
+      if (cuenta == null) {
+        return const AuthResult.fail('Inicio de sesión cancelado.');
+      }
+      final auth = await cuenta.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) {
+        return const AuthResult.fail('Google no entregó un token válido.');
+      }
+
+      final data = await _api.post(
+        '/auth/google',
+        body: {'idToken': idToken},
+        autenticado: false,
+      );
+
+      if (data['nuevo'] == true) {
+        return AuthResult.necesitaRolGoogle(
+          idTokenGoogle: idToken,
+          perfilGoogle: GooglePerfilPendiente.fromJson(
+            data['perfil'] as Map<String, dynamic>,
+          ),
+        );
+      }
+
+      await _guardarSesionDesdeRespuesta(data);
+      return const AuthResult.ok(mensaje: 'Sesión iniciada');
+    } on ApiException catch (e) {
+      return AuthResult.fail(e.message);
+    } catch (_) {
+      return const AuthResult.fail(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
+  }
+
+  /// Segundo paso: reenvía el mismo idToken ya verificado una vez, más el
+  /// rol que la persona eligió en el selector que muestra la pantalla de
+  /// login. Recién acá el backend crea la cuenta.
+  Future<AuthResult> completarRegistroGoogle({
+    required String idToken,
+    required UserRole role,
+    String? nombreArtistico,
+  }) async {
+    try {
+      final data = await _api.post(
+        '/auth/google',
+        body: {
+          'idToken': idToken,
+          'role': role.backendValue,
+          if (role == UserRole.dj) 'nombreArtistico': nombreArtistico?.trim(),
+        },
+        autenticado: false,
+      );
+      await _guardarSesionDesdeRespuesta(data);
+      return const AuthResult.ok(mensaje: 'Cuenta creada');
+    } on ApiException catch (e) {
+      return AuthResult.fail(e.message);
+    } catch (_) {
+      return const AuthResult.fail(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
   }
 
   Future<AuthResult> registrar({

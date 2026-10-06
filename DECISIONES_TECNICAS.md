@@ -258,6 +258,41 @@ explica por qué se descartó la opción de integración más simple
 (Checkout Pro) a favor de una más compleja pero que sí cumple el diseño
 que el equipo ya había decidido.
 
+## 14. Login con Google: un solo endpoint para los dos pasos, sin Firebase
+
+**Problema:** BudSound necesita saber el rol (Participante o DJ) de cada
+cuenta — es la decisión que cambia toda la interfaz. Google, en cambio,
+solo confirma quién es la persona (nombre, apellido, correo verificado),
+nunca ese rol. Había que decidir cómo encajar "preguntar algo que Google no
+sabe" dentro de un login que se supone es de un solo toque.
+
+**Qué se hizo:** un único endpoint (`POST /auth/google`) que se llama hasta
+dos veces con el mismo `idToken`:
+
+1. Sin `role`: si el correo ya existe en BudSound, loguea directo. Si no
+   existe, responde `{ nuevo: true, perfil: {...} }` con lo que Google ya
+   confirmó, **sin crear nada todavía**.
+2. Con `role` (y `nombreArtistico` si es DJ): recién ahí crea la cuenta.
+
+El backend verifica el `idToken` contra las claves públicas de Google
+(`google-auth-library`, JWKS) — nunca contra lo que mande el celular. Las
+cuentas creadas por Google quedan con `password_hash = NULL` en la base de
+datos (columna que antes era `NOT NULL`), y el login con contraseña
+rechaza explícitamente esas cuentas ("esta cuenta se creó con Google") en
+vez de intentar comparar contra un hash que no existe.
+
+Se descartó integrar Firebase Auth (la opción más común para esto) porque
+hubiera significado una segunda fuente de verdad de usuarios en paralelo a
+la tabla `users` de PostgreSQL que ya existe — más complejidad para un
+proyecto que ya tiene su propio JWT y su propio modelo de datos, sin
+ganar nada a cambio.
+
+**Por qué importa para la defensa:** es un ejemplo de diseñar la
+integración con un proveedor externo (Google) alrededor del modelo de
+datos propio, no al revés — y de resolver con una sola ruta (dos llamadas)
+en vez de inventar un endpoint o una tabla temporal para un "estado a
+medio registrar".
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más

@@ -21,7 +21,10 @@ CREATE TYPE transaction_status AS ENUM ('PENDIENTE', 'AUTORIZADA', 'APROBADA', '
 CREATE TABLE users (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email             TEXT NOT NULL UNIQUE,
-  password_hash     TEXT NOT NULL,
+  -- NULL cuando la cuenta se creó con "Iniciar sesión con Google" (no tiene
+  -- contraseña propia) — iniciarSesion() lo rechaza explícitamente en ese
+  -- caso en vez de comparar contra un hash inexistente.
+  password_hash     TEXT,
   role              user_role NOT NULL DEFAULT 'PARTICIPANTE',
   nombre            TEXT NOT NULL,
   apellido          TEXT NOT NULL,

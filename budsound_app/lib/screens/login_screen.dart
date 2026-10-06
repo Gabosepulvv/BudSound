@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_routes.dart';
+import '../models/google_perfil_pendiente.dart';
+import '../models/user_role.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/budsound_text_field.dart';
@@ -8,6 +10,7 @@ import '../widgets/dark_neon_scaffold.dart';
 import '../widgets/glow_logo.dart';
 import '../widgets/google_sign_in_button.dart';
 import '../widgets/neon_gradient_button.dart';
+import '../widgets/role_segmented_control.dart';
 
 /// Inicio de sesión con correo/contraseña y Google.
 class LoginScreen extends StatefulWidget {
@@ -53,7 +56,107 @@ class _LoginScreenState extends State<LoginScreen> {
     final result = await _auth.iniciarSesionConGoogle();
     if (!mounted) return;
     setState(() => _cargandoGoogle = false);
+
+    if (result.necesitaRolGoogle) {
+      final eleccion = await _elegirRolGoogle(result.perfilGoogle!);
+      if (eleccion == null || !mounted) return;
+
+      setState(() => _cargandoGoogle = true);
+      final resultFinal = await _auth.completarRegistroGoogle(
+        idToken: result.idTokenGoogle!,
+        role: eleccion.$1,
+        nombreArtistico: eleccion.$2,
+      );
+      if (!mounted) return;
+      setState(() => _cargandoGoogle = false);
+      _trasAuth(resultFinal);
+      return;
+    }
+
     _trasAuth(result);
+  }
+
+  /// Google ya confirmó quién es la persona, pero no sabe si va a usar
+  /// BudSound como Participante o como DJ — se pregunta acá antes de crear
+  /// la cuenta. Devuelve (rol, nombreArtistico) o null si canceló.
+  Future<(UserRole, String?)?> _elegirRolGoogle(GooglePerfilPendiente perfil) {
+    var rol = UserRole.publico;
+    final djController = TextEditingController();
+    return showModalBottomSheet<(UserRole, String?)>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '¡Hola, ${perfil.nombre}!',
+                style: const TextStyle(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Antes de entrar, dinos cómo vas a usar BudSound.',
+                style: TextStyle(color: AppColors.muted, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              RoleSegmentedControl(
+                value: rol,
+                onChanged: (v) => setState(() => rol = v),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                child: rol == UserRole.dj
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 14),
+                        child: BudsoundTextField(
+                          controller: djController,
+                          label: 'Nombre de DJ (Nombre Artístico)',
+                          hint: 'Ej. DJ Neon',
+                          prefixIcon: const Icon(Icons.headphones_outlined,
+                              color: AppColors.muted),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              const SizedBox(height: 20),
+              NeonGradientButton(
+                label: 'Continuar',
+                onPressed: () {
+                  if (rol == UserRole.dj &&
+                      djController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Ingresa tu nombre artístico.'),
+                        backgroundColor: AppColors.danger,
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.of(context).pop(
+                    (rol, rol == UserRole.dj ? djController.text.trim() : null),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _trasAuth(AuthResult result) {

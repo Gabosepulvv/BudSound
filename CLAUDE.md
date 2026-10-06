@@ -89,6 +89,12 @@ los Términos de Servicio de Spotify y YouTube. Por eso:
     aprobación para poder demostrar el flujo sin credenciales reales.
 - **API musical:** iTunes Search API (gratuita, sin key), consumida solo
   desde el backend (`GET /api/songs/search`).
+- **Login con Google:** implementado en código (`POST /auth/google` en el
+  backend, `GoogleSignIn` + selector de rol en `LoginScreen`), pero
+  **bloqueado hasta crear el proyecto en Google Cloud Console** — ver
+  sección "Login con Google — setup pendiente" más abajo. Mientras no haya
+  Client ID configurado, el botón muestra un aviso explícito en vez de
+  intentar un flujo que fallaría.
 - **Hosting:** Railway (capa gratuita). Aún no se ha creado el proyecto.
 - **QR:** `qr_flutter` para generarlo (DJ), `mobile_scanner` para leerlo
   (Participante), con botón de linterna para lugares con poca luz —
@@ -274,6 +280,48 @@ Spotify/YouTube — hay que poder explicarla en la defensa:
   conectar su propia cuenta (OAuth de MercadoPago como marketplace) antes
   de poder recibir solicitudes con propina.
 
+## Login con Google — setup pendiente
+
+El código ya está (backend y app), pero no funciona todavía porque hace
+falta crear un proyecto en
+[Google Cloud Console](https://console.cloud.google.com/) y generar dos
+credenciales OAuth. Cualquiera del equipo con acceso a una cuenta de Google
+puede hacerlo — no requiere pagar nada (esto es gratis, a diferencia de
+MercadoPago):
+
+1. Crear un proyecto nuevo (o usar uno existente) en Google Cloud Console.
+2. **Pantalla de consentimiento OAuth:** configurarla en modo "Externo",
+   agregar el scope `email` (ya viene por defecto) y, mientras esté en
+   modo prueba ("Testing"), agregar como "test user" el correo de Google
+   con el que se vaya a probar el login — si no, Google rechaza el login
+   para cualquier cuenta que no esté en esa lista.
+3. **Credencial OAuth tipo "Android":** nombre de paquete
+   `com.example.budsound` (el `applicationId` actual en
+   `android/app/build.gradle.kts` — sigue siendo el default de la plantilla
+   de Flutter, nadie lo ha cambiado todavía) y el SHA-1 del keystore de
+   debug de cada máquina donde se vaya a probar. En esta máquina es:
+   `2D:A1:4B:3B:0D:7D:EB:BB:30:C0:1C:5A:F9:EE:A6:AB:BD:90:AC:BF` (se saca
+   con `keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore
+   -alias androiddebugkey -storepass android -keypass android` — cada
+   integrante del equipo tiene su propio keystore de debug, así que cada
+   uno debe agregar el suyo como credencial Android separada, o nadie más
+   que esta máquina va a poder probar el login con Google).
+4. **Credencial OAuth tipo "Web":** esta es la que realmente se usa en
+   ambos lados — ni el backend ni la app leen la credencial "Android"
+   directamente, solo necesitan existir para que Google permita el flujo
+   nativo en el celular. El Client ID de la credencial "Web" va en:
+   - `budsound_backend/.env` → `GOOGLE_CLIENT_ID=...` (verifica el idToken
+     contra esta audiencia, ver `google-auth.service.js`).
+   - Al correr la app → `flutter run
+     --dart-define=GOOGLE_SERVER_CLIENT_ID=...` (mismo valor — ver
+     `lib/core/google_auth_config.dart`). Sin este define, el botón de
+     Google muestra "todavía no está configurado" en vez de intentar un
+     flujo roto.
+5. Probar con el usuario de Google agregado como "test user" en el paso 2.
+   La primera vez que alguien nuevo inicia sesión con Google, BudSound
+   pregunta el rol (Participante/DJ) antes de crear la cuenta — Google no
+   sabe esa parte.
+
 ## Problemas conocidos del entorno
 
 - **Windows + espacio en la ruta de usuario (RESUELTO en este equipo):** si
@@ -304,7 +352,9 @@ Spotify/YouTube — hay que poder explicarla en la defensa:
   daemon de Gradle necesite ese socket; si aparece en otro paquete de la
   cadena de build (Kotlin, AAPT2), correr `flutter run` desde una terminal
   interactiva propia (no en segundo plano) para poder aceptar la ventana
-  de Windows Firewall cuando aparezca.
+  de Windows Firewall cuando aparezca. Confirmado que vuelve a pasar si se
+  reinstala el JDK (Windows ve un `java.exe` "nuevo" aunque la ruta sea la
+  misma) — mismo arreglo: terminal interactiva propia, aceptar la ventana.
 - **Se necesita JDK 17+ para compilar Android:** el proyecto usa Gradle
   9 / AGP 9 (`android/gradle/wrapper/gradle-wrapper.properties`,
   `android/settings.gradle.kts`), que no corren con Java 8. Si `flutter

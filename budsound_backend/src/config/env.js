@@ -19,6 +19,10 @@ module.exports = {
     accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '',
     publicKey: process.env.MERCADOPAGO_PUBLIC_KEY || '',
   },
+  // Client ID "Web" del proyecto de Google Cloud Console — el mismo que usa
+  // la app Flutter como `serverClientId` para que el idToken que genera
+  // venga dirigido a esta audiencia (ver google-auth.service.js).
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   commissionRate: Number(process.env.BUDSOUND_COMMISSION_RATE) || 0.08,
   // Ver CLAUDE.md, riesgo "Autorización de pago vs. captura": una solicitud
   // pendiente no puede quedar colgada para siempre.

@@ -1,11 +1,19 @@
 const { pool } = require('../config/db');
 
-async function crear({ email, passwordHash, role, nombre, apellido, nombreArtistico }) {
+async function crear({
+  email,
+  passwordHash,
+  role,
+  nombre,
+  apellido,
+  nombreArtistico,
+  avatarDataUrl,
+}) {
   const { rows } = await pool.query(
-    `INSERT INTO users (email, password_hash, role, nombre, apellido, nombre_artistico)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO users (email, password_hash, role, nombre, apellido, nombre_artistico, avatar_data_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id, email, role, nombre, apellido, nombre_artistico, avatar_data_url, created_at`,
-    [email, passwordHash, role, nombre, apellido, nombreArtistico || null],
+    [email, passwordHash || null, role, nombre, apellido, nombreArtistico || null, avatarDataUrl || null],
   );
   return rows[0];
 }
