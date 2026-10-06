@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../models/event_model.dart';
+import '../services/api_client.dart';
 import '../services/event_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
@@ -8,8 +10,9 @@ import '../widgets/budsound_text_field.dart';
 import '../widgets/neon_gradient_button.dart';
 import 'participant_event_screen.dart';
 
-/// Punto de entrada del Participante: escanear el QR del DJ o escribir el
-/// código a mano.
+/// Punto de entrada del Participante: si ya está en un evento, muestra una
+/// vista previa de acceso directo; si no, escanear el QR del DJ o escribir
+/// el código a mano.
 class ParticipantJoinScreen extends StatefulWidget {
   const ParticipantJoinScreen({super.key});
 
@@ -21,11 +24,45 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
   final _eventService = EventService();
   final _codigoController = TextEditingController();
   bool _cargando = false;
+  bool _cargandoEventoActual = true;
+  bool _mostrarUnirse = false;
+  EventModel? _eventoActual;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarEventoActual();
+  }
 
   @override
   void dispose() {
     _codigoController.dispose();
     super.dispose();
+  }
+
+  /// Revalida contra el backend el código guardado del último evento al que
+  /// se unió este dispositivo — puede haberse cerrado desde la última vez.
+  Future<void> _cargarEventoActual() async {
+    final code = SessionService.instance.ultimoEventoCode;
+    if (code == null) {
+      setState(() => _cargandoEventoActual = false);
+      return;
+    }
+    try {
+      final evento = await _eventService.buscarPorCodigo(code);
+      if (!mounted) return;
+      setState(() {
+        _eventoActual = evento;
+        _cargandoEventoActual = false;
+      });
+    } on ApiException {
+      await SessionService.instance.limpiarUltimoEventoCode();
+      if (!mounted) return;
+      setState(() => _cargandoEventoActual = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _cargandoEventoActual = false);
+    }
   }
 
   Future<void> _unirsePorCodigo(String codigo) async {
@@ -35,10 +72,11 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
       final evento = await _eventService.buscarPorCodigo(codigo);
       await SessionService.instance.guardarUltimoEventoCode(evento.code);
       if (!mounted) return;
-      Navigator.of(context).push(
+      await Navigator.of(context).push(
         MaterialPageRoute(
             builder: (_) => ParticipantEventScreen(evento: evento)),
       );
+      if (mounted) _cargarEventoActual();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -56,8 +94,42 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
     if (codigo != null) _unirsePorCodigo(codigo);
   }
 
+  Future<void> _abrirEventoActual() async {
+    final evento = _eventoActual;
+    if (evento == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ParticipantEventScreen(evento: evento)),
+    );
+    if (mounted) _cargarEventoActual();
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_cargandoEventoActual) {
+      return Center(
+        child: CircularProgressIndicator(color: AppColors.limeGreen),
+      );
+    }
+
+    if (_eventoActual != null && !_mostrarUnirse) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _tarjetaEventoActual(_eventoActual!),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => setState(() => _mostrarUnirse = true),
+                child: const Text('¿No es tu evento? Unirse a otro'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -101,8 +173,67 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
               onPressed: () => _unirsePorCodigo(_codigoController.text),
               child: const Text('Unirse con el código'),
             ),
+            if (_eventoActual != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => setState(() => _mostrarUnirse = false),
+                child: const Text('Volver a mi evento actual'),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Acceso directo al evento al que ya se unió este dispositivo — antes,
+  /// esta pestaña mostraba siempre la pantalla de "escanear QR" aunque ya
+  /// se estuviera en un evento, obligando a buscarlo de nuevo.
+  Widget _tarjetaEventoActual(EventModel evento) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.limeGreen),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.limeGreen,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'ESTÁS AQUÍ',
+              style: TextStyle(
+                  color: AppColors.onLime,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            evento.nombre,
+            style: const TextStyle(
+                color: AppColors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Código ${evento.code}',
+            style: const TextStyle(color: AppColors.muted, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          NeonGradientButton(
+            label: 'Pedir una canción',
+            onPressed: _abrirEventoActual,
+          ),
+        ],
       ),
     );
   }
