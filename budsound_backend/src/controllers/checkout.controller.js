@@ -71,7 +71,7 @@ function paginaCheckout(req, res) {
   <h1>Propina de $${datos.montoClp.toLocaleString('es-CL')} CLP</h1>
   <p>${escapeHtml(datos.titulo)}${datos.artista ? ' — ' + escapeHtml(datos.artista) : ''}</p>
   <div id="cardPaymentBrick_container"></div>
-  <div id="estado"></div>
+  <div id="estado">Cargando formulario de pago…</div>
   <script>
     // El título/artista vienen de resultados de iTunes, no de BudSound —
     // se escapa "</script" para que un título con esa secuencia literal no
@@ -87,9 +87,18 @@ function paginaCheckout(req, res) {
     mp.bricks().create('cardPayment', 'cardPaymentBrick_container', {
       initialization: { amount: datos.montoClp },
       callbacks: {
+        // El Brick exige los dos (onReady y onError) para inicializar —
+        // sin onReady tira "Callbacks onReady and/or onError are
+        // required" y el formulario se queda en blanco para siempre, sin
+        // ni siquiera llegar a disparar onError (se vio en el logcat del
+        // WebView: el error lo tira cardPayment.js antes de montar nada).
+        onReady: () => {
+          estadoEl.textContent = '';
+        },
         onError: (error) => {
           estadoEl.textContent = 'No se pudo cargar el formulario de pago.';
           estadoEl.className = 'error';
+          avisarFlutter('error:No se pudo cargar el formulario de pago.');
           console.error(error);
         },
         onSubmit: ({ formData }) => new Promise((resolve, reject) => {
