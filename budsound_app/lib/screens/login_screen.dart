@@ -169,11 +169,28 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _mostrarResultado(bool ok, String? texto) {
+    final esCorreoSinVerificar = !ok && (texto?.contains('Verifica tu correo') ?? false);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(texto ?? (ok ? 'Listo' : 'Error')),
         backgroundColor: ok ? AppColors.limeDark : AppColors.danger,
+        action: esCorreoSinVerificar
+            ? SnackBarAction(
+                label: 'Reenviar',
+                textColor: AppColors.white,
+                onPressed: _reenviarVerificacion,
+              )
+            : null,
       ),
+    );
+  }
+
+  Future<void> _reenviarVerificacion() async {
+    final mensaje = await _auth.reenviarVerificacion(_emailController.text);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje), backgroundColor: AppColors.limeDark),
     );
   }
 

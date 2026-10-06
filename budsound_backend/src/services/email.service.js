@@ -1,0 +1,76 @@
+const nodemailer = require('nodemailer');
+const env = require('../config/env');
+
+const credencialesListas = () => Boolean(env.smtp.host && env.smtp.user && env.smtp.pass);
+
+let transporter = null;
+function obtenerTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: env.smtp.host,
+      port: env.smtp.port,
+      secure: env.smtp.port === 465,
+      auth: { user: env.smtp.user, pass: env.smtp.pass },
+    });
+  }
+  return transporter;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[c]));
+}
+
+// Un solo botón que confirma de inmediato al tocarlo (GET a
+// /api/auth/verify-email, ver auth.controller.js) — no hace falta volver a
+// abrir la app ni iniciar sesión para que quede confirmado.
+async function enviarCorreoVerificacion({ to, nombre, verificationUrl }) {
+  const nombreSeguro = escapeHtml(nombre);
+  const urlSegura = escapeHtml(verificationUrl);
+
+  await obtenerTransporter().sendMail({
+    from: env.smtp.from,
+    to,
+    subject: 'Confirma tu correo en BudSound',
+    html: `<!DOCTYPE html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#070B14;font-family:-apple-system,system-ui,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#070B14;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:420px;background:#0D1626;border-radius:18px;border:1px solid #1E2C44;padding:32px 28px;">
+        <tr><td align="center" style="padding-bottom:18px;">
+          <span style="color:#FFFFFF;font-size:22px;font-weight:700;letter-spacing:1px;">budsound</span>
+        </td></tr>
+        <tr><td style="color:#FFFFFF;font-size:17px;font-weight:700;padding-bottom:8px;">
+          ¡Hola, ${nombreSeguro}!
+        </td></tr>
+        <tr><td style="color:#93A2BE;font-size:14px;line-height:1.5;padding-bottom:24px;">
+          Confirma que este correo es tuyo para activar tu cuenta de BudSound.
+          Solo toca el botón — no necesitas hacer nada más.
+        </td></tr>
+        <tr><td align="center" style="padding-bottom:20px;">
+          <a href="${urlSegura}" style="display:inline-block;background:#B4FF39;color:#0B1403;font-weight:700;font-size:15px;text-decoration:none;padding:14px 28px;border-radius:14px;">
+            Confirmar mi correo
+          </a>
+        </td></tr>
+        <tr><td style="color:#93A2BE;font-size:12px;line-height:1.5;">
+          Si el botón no funciona, copia y pega este link en tu navegador:<br/>
+          <span style="color:#B4FF39;word-break:break-all;">${urlSegura}</span>
+        </td></tr>
+        <tr><td style="color:#93A2BE;font-size:12px;padding-top:18px;">
+          Este link vence en 24 horas. Si tú no creaste esta cuenta, ignora este correo.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  });
+}
+
+module.exports = { credencialesListas, enviarCorreoVerificacion };

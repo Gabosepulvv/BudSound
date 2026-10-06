@@ -99,6 +99,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
     setState(() => _cargando = false);
 
+    if (result.requiereVerificacion) {
+      await _mostrarDialogoVerificacion(result.emailPendiente!);
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result.mensaje ?? result.error ?? ''),
@@ -112,6 +117,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
         (_) => false,
       );
     }
+  }
+
+  /// La cuenta se creó pero no queda sesión iniciada hasta confirmar el
+  /// correo (ver AuthService.registrar) — se avisa y se vuelve al login en
+  /// vez de entrar directo a la app.
+  Future<void> _mostrarDialogoVerificacion(String email) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        icon: const Icon(Icons.mark_email_read_outlined,
+            color: AppColors.limeGreen, size: 36),
+        title: const Text('Revisa tu correo',
+            style: TextStyle(color: AppColors.white)),
+        content: Text(
+          'Te enviamos un link a $email para confirmar tu cuenta. '
+          'Tócalo y después vuelve a iniciar sesión acá.',
+          style: const TextStyle(color: AppColors.lavender),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Entendido',
+                style: TextStyle(color: AppColors.limeGreen)),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (_) => false,
+    );
   }
 
   @override

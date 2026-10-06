@@ -34,6 +34,14 @@ CREATE TABLE users (
   -- tier) tiene filesystem efímero — un archivo subido se perdería en el
   -- próximo redeploy.
   avatar_data_url   TEXT,
+  -- Confirma que la persona es dueña del correo con el que se registró (no
+  -- aplica a cuentas creadas con Google, que llegan ya verificadas porque
+  -- Google confirma el email por su cuenta — ver auth.controller.js). Antes
+  -- de esto, cualquiera podía registrarse con el correo de otra persona sin
+  -- que nada lo confirmara.
+  email_verificado  BOOLEAN NOT NULL DEFAULT false,
+  verificacion_token_hash    TEXT,
+  verificacion_token_expira  TIMESTAMPTZ,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

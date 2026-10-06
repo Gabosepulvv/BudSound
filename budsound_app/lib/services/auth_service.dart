@@ -11,20 +11,27 @@ import 'session_service.dart';
 /// es el único caso especial: Google confirmó la identidad, pero la cuenta
 /// todavía no existe en BudSound y hace falta elegir rol (Participante/DJ)
 /// antes de poder crearla — ver [AuthService.completarRegistroGoogle].
+/// [requiereVerificacion] es el otro: la cuenta se creó pero no queda
+/// sesión iniciada hasta que confirmen el correo (ver
+/// [AuthService.registrar]).
 class AuthResult {
   const AuthResult.ok({this.mensaje})
       : exito = true,
         error = null,
         necesitaRolGoogle = false,
         perfilGoogle = null,
-        idTokenGoogle = null;
+        idTokenGoogle = null,
+        requiereVerificacion = false,
+        emailPendiente = null;
 
   const AuthResult.fail(this.error)
       : exito = false,
         mensaje = null,
         necesitaRolGoogle = false,
         perfilGoogle = null,
-        idTokenGoogle = null;
+        idTokenGoogle = null,
+        requiereVerificacion = false,
+        emailPendiente = null;
 
   const AuthResult.necesitaRolGoogle({
     required this.perfilGoogle,
@@ -32,7 +39,19 @@ class AuthResult {
   })  : exito = false,
         mensaje = null,
         error = null,
-        necesitaRolGoogle = true;
+        necesitaRolGoogle = true,
+        requiereVerificacion = false,
+        emailPendiente = null;
+
+  const AuthResult.requiereVerificacion({
+    required this.emailPendiente,
+    this.mensaje,
+  })  : exito = false,
+        error = null,
+        necesitaRolGoogle = false,
+        perfilGoogle = null,
+        idTokenGoogle = null,
+        requiereVerificacion = true;
 
   final bool exito;
   final String? mensaje;
@@ -40,6 +59,8 @@ class AuthResult {
   final bool necesitaRolGoogle;
   final GooglePerfilPendiente? perfilGoogle;
   final String? idTokenGoogle;
+  final bool requiereVerificacion;
+  final String? emailPendiente;
 }
 
 /// Autenticación real contra el backend de BudSound (JWT).
@@ -188,6 +209,17 @@ class AuthService {
         },
         autenticado: false,
       );
+
+      // El backend solo manda `requiereVerificacion` cuando hay SMTP
+      // configurado (ver CLAUDE.md) — en ese caso la cuenta queda creada
+      // pero SIN sesión iniciada hasta que confirmen el correo.
+      if (data['requiereVerificacion'] == true) {
+        return AuthResult.requiereVerificacion(
+          emailPendiente: data['email'] as String? ?? usuario.email.trim(),
+          mensaje: data['mensaje'] as String?,
+        );
+      }
+
       await _guardarSesionDesdeRespuesta(
         data,
         fechaNacimiento: usuario.fechaNacimiento,
@@ -199,6 +231,22 @@ class AuthService {
       return const AuthResult.fail(
         'No se pudo conectar con el servidor. Revisa tu conexión.',
       );
+    }
+  }
+
+  /// Pide un nuevo link de verificación (el primero vence a las 24h, o se
+  /// pudo ir a spam). El backend responde el mismo mensaje genérico exista o
+  /// no la cuenta, así que no hay nada que distinguir acá.
+  Future<String> reenviarVerificacion(String email) async {
+    try {
+      final data = await _api.post(
+        '/auth/resend-verification',
+        body: {'email': email.trim()},
+        autenticado: false,
+      );
+      return data['mensaje'] as String? ?? 'Si corresponde, te enviamos un nuevo link.';
+    } catch (_) {
+      return 'No se pudo conectar con el servidor. Revisa tu conexión.';
     }
   }
 
