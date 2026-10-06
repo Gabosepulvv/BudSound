@@ -594,6 +594,95 @@ pantalla de error nativa sin detalle).
 
 ---
 
+## 23. El Card Payment Brick de MercadoPago exige `onReady`: encontrado leyendo logcat del WebView, no adivinando
+
+**Problema:** después del fix de la entrada 22, el POST ya llegaba bien al
+backend y el WebView cargaba la página — pero el formulario de tarjeta se
+quedaba en un recuadro blanco vacío para siempre, sin ningún error visible
+en la pantalla.
+
+**Cómo se encontró:** en vez de adivinar, se leyó directo el log nativo
+del WebView con `adb logcat | grep chromium` mientras se reproducía el
+error en el emulador. Ahí apareció la causa exacta:
+
+```
+[INFO:CONSOLE] "Uncaught (in promise) Error: [undefined error]
+Callbacks onReady and/or onError are required",
+source: .../op-cho-bricks/.../cardPayment.js
+```
+
+El Brick de MercadoPago exige los callbacks `onReady` **y** `onError` para
+inicializar — `checkout.controller.js` solo tenía `onError` y `onSubmit`.
+Sin `onReady`, el Brick ni siquiera llega a intentar dibujarse.
+
+**Qué se hizo:** se agregó `onReady` (limpia el texto de "Cargando…") y de
+paso `onError` ahora también avisa a Flutter por el canal
+`BudSoundCheckout` (antes solo cambiaba texto dentro del WebView, invisible
+si el contenedor del Brick tapaba ese texto).
+
+**Por qué importa para la defensa:** `adb logcat` (o el inspector remoto de
+`chrome://inspect` para WebViews) es la herramienta correcta para depurar
+"una página web que corre dentro de una app" — los errores de JS ahí NO
+aparecen en la consola de Flutter ni en ningún lado dentro del propio
+código Dart, porque ocurren en un proceso de renderizado aparte (el
+WebView). Sin mirar ese log, esto se habría intentado arreglar a ciegas.
+
+## 24. Propina obligatoria y en múltiplos de $50: pivote post-MVP, validado en los tres niveles
+
+**Problema:** la Fase 1 definió la propina como opcional (monto $0 también
+válido). El equipo decidió revertir esa decisión: pedir una canción ahora
+siempre requiere propina. Además, para que el monto se pueda pagar en
+efectivo sin andar buscando vueltas raras, tiene que ser múltiplo de $50
+(termina en 0, decena en 0 o 5 — ej. 600, 650, 700).
+
+**Qué se hizo:** la regla se aplica en los tres lugares donde podría
+saltarse, no solo en la app:
+
+1. **UI** (`participant_event_screen.dart`): el diálogo de monto ya no
+   tiene la alternativa "Sin propina" — solo hay montos predefinidos más
+   un campo "Otro monto" que valida en vivo (múltiplo de 50, entre $500 y
+   $20.000) antes de dejar enviar.
+2. **Backend** (`request.controller.js`): la misma validación exacta,
+   porque nada obliga a que la solicitud venga de la app — alguien podría
+   pegarle directo a la API.
+3. **Base de datos** (`schema.sql`, tabla `song_requests`): un `CHECK
+   (monto_clp BETWEEN 500 AND 20000 AND monto_clp % 50 = 0)` — la última
+   barrera si algún bug futuro en el backend se saltara su propia
+   validación.
+
+**Por qué importa para la defensa:** es el mismo principio que ya se
+aplicaba a la comisión y al monto máximo/mínimo (nunca confiar solo en lo
+que valida el cliente) — acá se ve especialmente claro porque la regla
+("múltiplo de 50") es nueva y hubo que agregarla a los tres niveles a la
+vez para que fuera real, no solo cosmética en la pantalla.
+
+## 25. Canciones "populares" por defecto: el feed RSS de iTunes, no la Search API
+
+**Problema:** la búsqueda de canciones arrancaba vacía — "Busca una
+canción para pedirla" — hasta que la persona escribía algo. Se pidió que
+ya aparecieran canciones de entrada.
+
+**Qué se hizo:** iTunes tiene dos APIs públicas distintas: la Search API
+que ya se usaba (`itunes.apple.com/search`, necesita un término) y un feed
+RSS de charts reales (`itunes.apple.com/cl/rss/topsongs/limit=20/json`,
+sin término, sin key) con el Top 20 actual de Chile. Se agregó
+`itunesService.topCanciones()` que consume ese segundo feed y lo mapea al
+mismo formato que ya devolvía la búsqueda normal (`GET /api/songs/top`),
+para que el frontend no tenga que distinguir entre "resultado de búsqueda"
+y "popular" más que en la etiqueta que muestra arriba de la lista.
+
+De paso, la búsqueda por texto pasó de "hay que tocar la lupa o Enter" a
+buscar sola 400ms después de que la persona deja de escribir
+(`Timer`+debounce en `participant_event_screen.dart`) — si borra todo el
+texto, vuelve a mostrar las populares en vez de quedar en blanco.
+
+**Por qué importa para la defensa:** evitar la tentación de "hardcodear
+una lista de canciones populares a mano" — había una fuente real y
+gratuita (el chart oficial de iTunes) que resuelve el mismo problema con
+datos de verdad y sin mantenimiento.
+
+---
+
 _Última actualización: se va completando a medida que aparecen más
 decisiones de este tipo. Si el equipo agrega algo parecido, vale la pena
 sumarlo acá con el mismo formato._

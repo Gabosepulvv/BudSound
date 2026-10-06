@@ -142,7 +142,8 @@ roles en estructura pero con contenido distinto:
 
 **Incluye:** registro/login con rol, creación de evento con QR (DJ) e
 ingreso a evento vía QR (Participante), búsqueda de canciones (iTunes Search
-API), solicitud de canción con monto opcional ($500–$20.000 CLP), cola de
+API), solicitud de canción con propina obligatoria ($500–$20.000 CLP, en
+múltiplos de $50), cola de
 solicitudes en tiempo real para el DJ con aceptar/rechazar, cobro
 condicionado (solo se cobra si el DJ acepta), cierre de evento con
 recaudación total y analítica básica.
