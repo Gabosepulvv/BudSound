@@ -42,6 +42,15 @@ CREATE TABLE users (
   email_verificado  BOOLEAN NOT NULL DEFAULT false,
   verificacion_token_hash    TEXT,
   verificacion_token_expira  TIMESTAMPTZ,
+  -- OAuth de MercadoPago como marketplace (solo DJ): con esto conectado,
+  -- las propinas de sus eventos se cobran directo en SU cuenta (menos la
+  -- comisión de BudSound vía `application_fee`) en vez de pasar por la
+  -- cuenta central de BudSound — ver CLAUDE.md, "¿A quién le llega la
+  -- plata primero?" (Opción A) y mercadopago-oauth.service.js.
+  mp_collector_id      BIGINT,
+  mp_access_token      TEXT,
+  mp_refresh_token     TEXT,
+  mp_token_expira      TIMESTAMPTZ,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

@@ -4,6 +4,7 @@ const eventRoutes = require('./event.routes');
 const requestRoutes = require('./request.routes');
 const songRoutes = require('./song.routes');
 const paymentRoutes = require('./payment.routes');
+const djRoutes = require('./dj.routes');
 const paymentController = require('../controllers/payment.controller');
 const { pool } = require('../config/db');
 
@@ -23,6 +24,7 @@ router.use('/events', eventRoutes);
 router.use('/requests', requestRoutes);
 router.use('/songs', songRoutes);
 router.use('/', paymentRoutes);
+router.use('/dj', djRoutes);
 
 // Sin auth: MercadoPago llama este endpoint directamente, no un usuario logueado.
 router.post('/webhooks/mercadopago', paymentController.webhook);

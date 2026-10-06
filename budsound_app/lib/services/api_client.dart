@@ -64,6 +64,17 @@ class ApiClient {
     return _procesar(response);
   }
 
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    bool autenticado = true,
+  }) async {
+    final response = await _client.delete(
+      _uri(path),
+      headers: _headers(autenticado: autenticado),
+    );
+    return _procesar(response);
+  }
+
   Uri _uri(String path, [Map<String, String>? query]) {
     return Uri.parse('${ApiConfig.baseUrl}$path').replace(
       queryParameters: (query == null || query.isEmpty) ? null : query,

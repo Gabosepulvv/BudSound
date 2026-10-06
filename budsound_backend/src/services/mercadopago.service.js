@@ -5,9 +5,12 @@ const MP_API = 'https://api.mercadopago.com';
 const credencialesListas = () =>
   Boolean(env.mercadopago.accessToken) && !env.mercadopago.accessToken.includes('PLACEHOLDER');
 
-async function llamarMp(path, { method = 'GET', body, idempotencyKey } = {}) {
+async function llamarMp(path, { method = 'GET', body, idempotencyKey, accessToken } = {}) {
   const headers = {
-    Authorization: `Bearer ${env.mercadopago.accessToken}`,
+    // `accessToken` permite operar sobre la cuenta de un DJ conectado por
+    // OAuth (ver mercadopago-oauth.service.js) en vez de la cuenta central
+    // de BudSound — ver `autorizarPago`.
+    Authorization: `Bearer ${accessToken || env.mercadopago.accessToken}`,
     'Content-Type': 'application/json',
   };
   if (idempotencyKey) headers['X-Idempotency-Key'] = idempotencyKey;
@@ -47,10 +50,18 @@ async function autorizarPago({
   paymentMethodId,
   installments,
   payerEmail,
+  // Cuando el DJ del evento conectó su propia cuenta (OAuth marketplace):
+  // el pago se autoriza directo en SU cuenta (djAccessToken) y
+  // `application_fee` es lo que MercadoPago retiene aparte para BudSound.
+  // Si cualquiera de los dos falta, se cobra en la cuenta central de
+  // BudSound como antes (comportamiento sin split).
+  djAccessToken,
+  applicationFee,
 }) {
   const pago = await llamarMp('/v1/payments', {
     method: 'POST',
     idempotencyKey: `budsound-autorizacion-${requestId}`,
+    accessToken: djAccessToken,
     body: {
       transaction_amount: montoClp,
       token,
@@ -60,6 +71,7 @@ async function autorizarPago({
       capture: false,
       payer: { email: payerEmail },
       external_reference: requestId,
+      ...(djAccessToken && applicationFee ? { application_fee: applicationFee } : {}),
     },
   });
 
@@ -76,18 +88,20 @@ async function autorizarPago({
 // la solicitud. Solo funciona mientras la autorización no haya expirado
 // (vigencia de 7 días en MercadoPago; el cron de BudSound libera las
 // solicitudes colgadas mucho antes de ese plazo).
-async function capturarPago(paymentId) {
+async function capturarPago(paymentId, { djAccessToken } = {}) {
   return llamarMp(`/v1/payments/${paymentId}`, {
     method: 'PUT',
+    accessToken: djAccessToken,
     body: { capture: true },
   });
 }
 
 // Libera una autorización sin cobrar nada — se llama cuando el DJ rechaza
 // la solicitud, o cuando el cron la cancela por quedar colgada.
-async function cancelarPago(paymentId) {
+async function cancelarPago(paymentId, { djAccessToken } = {}) {
   return llamarMp(`/v1/payments/${paymentId}`, {
     method: 'PUT',
+    accessToken: djAccessToken,
     body: { status: 'cancelled' },
   });
 }

@@ -3,6 +3,7 @@ const requestModel = require('../models/request.model');
 const eventModel = require('../models/event.model');
 const transactionModel = require('../models/transaction.model');
 const mercadopagoService = require('../services/mercadopago.service');
+const mercadopagoOauthService = require('../services/mercadopago-oauth.service');
 const env = require('../config/env');
 const { ApiError } = require('../middleware/error.middleware');
 const asyncHandler = require('../utils/asyncHandler');
@@ -85,6 +86,12 @@ const crear = asyncHandler(async (req, res) => {
     // el DJ: se borra y se avisa al Participante por qué falló.
     const comisionClp = Math.round(monto * env.commissionRate);
     const montoNetoClp = monto - comisionClp;
+    // Si el DJ del evento conectó su propia cuenta de MercadoPago (OAuth
+    // marketplace), la propina se autoriza directo ahí, con la comisión de
+    // BudSound retenida vía `application_fee` — ver CLAUDE.md, "¿A quién le
+    // llega la plata primero?" (Opción A). Si no, se cobra en la cuenta
+    // central de BudSound, como siempre.
+    const djAccessToken = await mercadopagoOauthService.obtenerAccessTokenVigente(event.dj_id);
     try {
       const pago = await mercadopagoService.autorizarPago({
         requestId: request.id,
@@ -94,6 +101,8 @@ const crear = asyncHandler(async (req, res) => {
         paymentMethodId,
         installments,
         payerEmail: req.user.email,
+        djAccessToken,
+        applicationFee: comisionClp,
       });
       transaction = await transactionModel.crear({
         requestId: request.id,
@@ -146,13 +155,17 @@ async function resolverSolicitud(req, res, nuevoStatus) {
   if (mercadopagoService.credencialesListas()) {
     // La propina ya se autorizó al crear la solicitud (ver `crear` arriba)
     // — acá solo se captura (cobra de verdad) o se libera, nunca se crea.
+    // Si se autorizó en la cuenta del DJ, capturar/cancelar también debe
+    // hacerse con SU token (MercadoPago no deja operar un pago desde una
+    // cuenta distinta a la que lo autorizó).
     transaction = await transactionModel.buscarPorRequestId(resuelta.id);
     if (transaction && transaction.status === 'AUTORIZADA') {
+      const djAccessToken = await mercadopagoOauthService.obtenerAccessTokenVigente(event.dj_id);
       if (nuevoStatus === 'ACEPTADA') {
-        await mercadopagoService.capturarPago(transaction.mp_payment_id);
+        await mercadopagoService.capturarPago(transaction.mp_payment_id, { djAccessToken });
         transaction = await transactionModel.actualizarStatus(transaction.id, 'APROBADA');
       } else {
-        await mercadopagoService.cancelarPago(transaction.mp_payment_id);
+        await mercadopagoService.cancelarPago(transaction.mp_payment_id, { djAccessToken });
         transaction = await transactionModel.actualizarStatus(transaction.id, 'RECHAZADA');
       }
     }

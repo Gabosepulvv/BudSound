@@ -18,6 +18,15 @@ module.exports = {
   mercadopago: {
     accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '',
     publicKey: process.env.MERCADOPAGO_PUBLIC_KEY || '',
+    // OAuth "Mercado Pago como marketplace": permite que cada DJ conecte su
+    // propia cuenta (ver mercadopago-oauth.service.js). Son credenciales
+    // distintas del Access Token/Public Key de arriba — están en la pestaña
+    // "OAuth" de las credenciales de la aplicación en el panel de
+    // MercadoPago. Mientras falten, el botón "Conectar MercadoPago" del DJ
+    // queda deshabilitado y las propinas se siguen cobrando en la cuenta
+    // central de BudSound, como hasta ahora.
+    clientId: process.env.MERCADOPAGO_CLIENT_ID || '',
+    clientSecret: process.env.MERCADOPAGO_CLIENT_SECRET || '',
   },
   // Client ID "Web" del proyecto de Google Cloud Console — el mismo que usa
   // la app Flutter como `serverClientId` para que el idToken que genera

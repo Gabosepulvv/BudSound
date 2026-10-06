@@ -1,6 +1,7 @@
 const requestModel = require('../models/request.model');
 const transactionModel = require('../models/transaction.model');
 const mercadopagoService = require('../services/mercadopago.service');
+const mercadopagoOauthService = require('../services/mercadopago-oauth.service');
 const env = require('../config/env');
 
 /// Revisa solicitudes PENDIENTE colgadas y las cancela automáticamente
@@ -17,11 +18,12 @@ async function limpiarSolicitudesColgadas(io) {
   // libera acá, el dinero del Participante queda retenido hasta que la
   // autorización expire sola a los 7 días.
   if (mercadopagoService.credencialesListas()) {
-    for (const { id: requestId } of canceladas) {
+    for (const { id: requestId, dj_id: djId } of canceladas) {
       const transaction = await transactionModel.buscarPorRequestId(requestId);
       if (transaction?.status !== 'AUTORIZADA') continue;
       try {
-        await mercadopagoService.cancelarPago(transaction.mp_payment_id);
+        const djAccessToken = await mercadopagoOauthService.obtenerAccessTokenVigente(djId);
+        await mercadopagoService.cancelarPago(transaction.mp_payment_id, { djAccessToken });
         await transactionModel.actualizarStatus(transaction.id, 'RECHAZADA');
       } catch (error) {
         console.error(

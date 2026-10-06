@@ -3,10 +3,13 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/app_routes.dart';
 import '../models/user_role.dart';
+import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/mp_connect_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/budsound_text_field.dart';
@@ -24,6 +27,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _auth = AuthService();
   final _picker = ImagePicker();
+  final _mpConnect = MpConnectService();
   late final TextEditingController _nombreController;
   late final TextEditingController _apellidoController;
 
@@ -31,12 +35,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _guardandoDatos = false;
   bool _editando = false;
 
+  MpConexionEstado? _mpEstado;
+  bool _cargandoMp = false;
+
   @override
   void initState() {
     super.initState();
     final usuario = SessionService.instance.usuario;
     _nombreController = TextEditingController(text: usuario?.nombre ?? '');
     _apellidoController = TextEditingController(text: usuario?.apellido ?? '');
+    if (SessionService.instance.rol == UserRole.dj) {
+      _cargarEstadoMp();
+    }
+  }
+
+  Future<void> _cargarEstadoMp() async {
+    setState(() => _cargandoMp = true);
+    try {
+      final estado = await _mpConnect.estado();
+      if (!mounted) return;
+      setState(() => _mpEstado = estado);
+    } catch (_) {
+      // Si falla, se deja el estado anterior (o null) — el botón de
+      // refrescar permite reintentar sin bloquear el resto de la pantalla.
+    } finally {
+      if (mounted) setState(() => _cargandoMp = false);
+    }
+  }
+
+  Future<void> _conectarMp() async {
+    setState(() => _cargandoMp = true);
+    try {
+      final authUrl = await _mpConnect.iniciarConexion();
+      final uri = Uri.parse(authUrl);
+      final abrio = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!abrio && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo abrir el navegador.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: AppColors.danger),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo iniciar la conexión con MercadoPago.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cargandoMp = false);
+    }
+  }
+
+  Future<void> _desconectarMp() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('¿Desconectar MercadoPago?',
+            style: TextStyle(color: AppColors.white)),
+        content: const Text(
+          'Las propinas de tus próximos eventos van a volver a cobrarse en la cuenta central de BudSound hasta que conectes tu cuenta de nuevo.',
+          style: TextStyle(color: AppColors.lavender),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar',
+                style: TextStyle(color: AppColors.muted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Desconectar',
+                style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    setState(() => _cargandoMp = true);
+    try {
+      await _mpConnect.desconectar();
+      if (!mounted) return;
+      setState(() => _mpEstado = const MpConexionEstado(conectado: false));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo desconectar la cuenta.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cargandoMp = false);
+    }
   }
 
   void _empezarEdicion() {
@@ -254,6 +358,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               children: [
                 _tarjetaDatos(esDj, usuario?.nombreArtistico),
+                if (esDj) ...[
+                  const SizedBox(height: 16),
+                  _tarjetaCobros(),
+                ],
                 const SizedBox(height: 16),
                 _fila(
                   'Sesión',
@@ -406,6 +514,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _filaDato('Nombre artístico', nombreArtistico),
             ],
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Conexión con MercadoPago para recibir propinas directo en la cuenta
+  /// del DJ (menos la comisión de BudSound) — ver CLAUDE.md, "¿A quién le
+  /// llega la plata primero?". Sin conectar, las propinas se siguen
+  /// cobrando en la cuenta central, como hasta ahora.
+  Widget _tarjetaCobros() {
+    final conectado = _mpEstado?.conectado ?? false;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Cobros',
+                  style: TextStyle(
+                      color: AppColors.white, fontWeight: FontWeight.w700),
+                ),
+              ),
+              IconButton(
+                onPressed: _cargandoMp ? null : _cargarEstadoMp,
+                icon: const Icon(Icons.refresh_rounded,
+                    size: 20, color: AppColors.muted),
+                tooltip: 'Actualizar estado',
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                conectado
+                    ? Icons.check_circle_rounded
+                    : Icons.error_outline_rounded,
+                size: 18,
+                color: conectado ? AppColors.limeGreen : AppColors.muted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  conectado
+                      ? 'MercadoPago conectado — las propinas de tus eventos llegan directo a tu cuenta.'
+                      : 'Todavía no conectas tu cuenta de MercadoPago — las propinas se cobran en la cuenta central de BudSound.',
+                  style:
+                      const TextStyle(color: AppColors.lavender, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (conectado)
+            OutlinedButton(
+              onPressed: _cargandoMp ? null : _desconectarMp,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.danger),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: _cargandoMp
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.danger),
+                    )
+                  : const Text('Desconectar',
+                      style: TextStyle(color: AppColors.danger)),
+            )
+          else
+            NeonGradientButton(
+              label: 'Conectar MercadoPago',
+              loading: _cargandoMp,
+              onPressed: _conectarMp,
+            ),
         ],
       ),
     );

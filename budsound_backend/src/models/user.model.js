@@ -83,6 +83,38 @@ async function actualizar(id, { nombre, apellido, avatarDataUrl }) {
   return rows[0] || null;
 }
 
+// Guarda la conexión OAuth de MercadoPago del DJ (ver
+// mercadopago-oauth.service.js). El access_token/refresh_token nunca deben
+// salir de acá hacia el cliente — los controladores solo exponen un booleano
+// "conectado" (ver DjController/serializarConexion).
+async function guardarConexionMercadoPago(id, { collectorId, accessToken, refreshToken, expiraEn }) {
+  await pool.query(
+    `UPDATE users SET
+       mp_collector_id = $2,
+       mp_access_token = $3,
+       mp_refresh_token = $4,
+       mp_token_expira = $5
+     WHERE id = $1`,
+    [id, collectorId, accessToken, refreshToken, expiraEn],
+  );
+}
+
+async function buscarConexionMercadoPago(id) {
+  const { rows } = await pool.query(
+    'SELECT mp_collector_id, mp_access_token, mp_refresh_token, mp_token_expira FROM users WHERE id = $1',
+    [id],
+  );
+  return rows[0] || null;
+}
+
+async function desconectarMercadoPago(id) {
+  await pool.query(
+    `UPDATE users SET mp_collector_id = NULL, mp_access_token = NULL, mp_refresh_token = NULL, mp_token_expira = NULL
+     WHERE id = $1`,
+    [id],
+  );
+}
+
 module.exports = {
   crear,
   buscarPorEmail,
@@ -90,4 +122,7 @@ module.exports = {
   actualizar,
   guardarTokenVerificacion,
   verificarPorToken,
+  guardarConexionMercadoPago,
+  buscarConexionMercadoPago,
+  desconectarMercadoPago,
 };

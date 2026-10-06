@@ -107,7 +107,7 @@ async function cancelarSolicitudesColgadas(timeoutHours) {
      WHERE sr.event_id = e.id
        AND sr.status = 'PENDIENTE'
        AND (e.status = 'CERRADO' OR sr.created_at < now() - make_interval(hours => $1))
-     RETURNING sr.id, sr.event_id`,
+     RETURNING sr.id, sr.event_id, e.dj_id`,
     [timeoutHours],
   );
   return rows;
