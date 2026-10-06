@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../core/api_config.dart';
@@ -68,22 +69,49 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
     }
     if (!mounted) return;
 
-    final body = utf8.encode(jsonEncode({
-      'eventId': widget.eventId,
-      'itunesTrackId': widget.itunesTrackId,
-      'titulo': widget.titulo,
-      'artista': widget.artista,
-      'artworkUrl': widget.artworkUrl,
-      'montoClp': widget.montoClp,
-      'terminosAceptados': widget.terminosAceptados,
-      'jwt': checkoutToken,
-    }));
-
     final checkoutUri = Uri.parse(ApiConfig.checkoutUrl);
-    // Lista blanca de a dónde puede navegar este WebView: nuestro propio
-    // backend (la página de checkout) y el SDK/dominios de MercadoPago que
-    // ella misma carga. Cualquier otra navegación (una redirección rara,
-    // un intento de phishing) se cancela antes de cargar — antes el
+    // El POST se hace acá, con el cliente HTTP normal de la app, no
+    // dejando que el WebView navegue directo con method: post — el
+    // WebView nativo de Android maneja mal un POST con body JSON (falla
+    // con "Webpage not available" en vez de mandar la solicitud). Una vez
+    // que tenemos el HTML de respuesta, se lo pasamos al WebView con
+    // loadHtmlString; baseUrl es necesario para que el fetch('/api/...')
+    // relativo que hace esa página (ver checkout.controller.js) resuelva
+    // contra nuestro backend y no contra "about:blank".
+    final String html;
+    try {
+      final respuesta = await http.post(
+        checkoutUri,
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'eventId': widget.eventId,
+          'itunesTrackId': widget.itunesTrackId,
+          'titulo': widget.titulo,
+          'artista': widget.artista,
+          'artworkUrl': widget.artworkUrl,
+          'montoClp': widget.montoClp,
+          'terminosAceptados': widget.terminosAceptados,
+          'jwt': checkoutToken,
+        }),
+      );
+      if (respuesta.statusCode != 200) {
+        throw Exception('status ${respuesta.statusCode}');
+      }
+      html = respuesta.body;
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorInicial = 'No se pudo iniciar el pago. Intenta de nuevo.';
+      });
+      return;
+    }
+    if (!mounted) return;
+
+    // Lista blanca de a dónde puede navegar este WebView una vez cargado:
+    // nuestro propio backend y el SDK/dominios de MercadoPago que la
+    // página misma carga. Cualquier otra navegación (una redirección
+    // rara, un intento de phishing) se cancela antes de cargar — antes el
     // WebView seguía cualquier navegación sin restricción, con JavaScript
     // habilitado y el canal BudSoundCheckout siempre expuesto.
     bool dominioPermitido(String host) {
@@ -114,12 +142,7 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
             },
           ),
         )
-        ..loadRequest(
-          checkoutUri,
-          method: LoadRequestMethod.post,
-          headers: const {'Content-Type': 'application/json'},
-          body: body,
-        );
+        ..loadHtmlString(html, baseUrl: ApiConfig.socketUrl);
     });
   }
 
