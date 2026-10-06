@@ -127,8 +127,8 @@ class _InicioScreenState extends State<InicioScreen> {
             ),
             const SizedBox(height: 20),
             if (_cargando)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Center(
                     child:
                         CircularProgressIndicator(color: AppColors.limeGreen)),

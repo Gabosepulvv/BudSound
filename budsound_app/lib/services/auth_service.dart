@@ -244,7 +244,8 @@ class AuthService {
         body: {'email': email.trim()},
         autenticado: false,
       );
-      return data['mensaje'] as String? ?? 'Si corresponde, te enviamos un nuevo link.';
+      return data['mensaje'] as String? ??
+          'Si corresponde, te enviamos un nuevo link.';
     } catch (_) {
       return 'No se pudo conectar con el servidor. Revisa tu conexión.';
     }

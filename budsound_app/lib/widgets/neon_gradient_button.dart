@@ -52,7 +52,7 @@ class _NeonGradientButtonState extends State<NeonGradientButton> {
               borderRadius: BorderRadius.circular(18),
               gradient: LinearGradient(
                 colors: enabled
-                    ? const [AppColors.limeGreen, AppColors.limeDark]
+                    ? [AppColors.limeGreen, AppColors.limeDark]
                     : [
                         AppColors.limeGreen.withOpacity(0.35),
                         AppColors.limeDark.withOpacity(0.35),

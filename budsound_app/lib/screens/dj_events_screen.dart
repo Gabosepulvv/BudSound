@@ -118,7 +118,7 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
             future: _eventosFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
+                return Center(
                   child: CircularProgressIndicator(color: AppColors.limeGreen),
                 );
               }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/colorblind_mode_service.dart';
 import '../theme/app_colors.dart';
 import 'inicio_screen.dart';
 import 'live_screen.dart';
@@ -32,39 +33,50 @@ class _ShellScreenState extends State<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: IndexedStack(
-        index: _indice,
-        children: [
-          InicioScreen(key: ValueKey(_inicioTick), onIrAEnVivo: _irAEnVivo),
-          const LiveScreen(),
-          const ProfileScreen(),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _indice,
-        onDestinationSelected: _cambiarPestana,
-        backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.limeGreen.withOpacity(0.25),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Inicio',
+    // Inicio/En vivo/Perfil quedan vivos en el IndexedStack (nunca se
+    // destruyen al cambiar de pestaña) — sin este listener, tocar "Modo
+    // daltónico" en Perfil no se reflejaría en las otras pestañas hasta
+    // salir y volver a entrar a la app. Los hijos tampoco pueden ser
+    // `const` acá: una instancia const es la MISMA cada vez, así que
+    // Flutter nunca volvería a construirla aunque este build() se repita.
+    return ListenableBuilder(
+      listenable: ColorblindModeService.instance,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: IndexedStack(
+            index: _indice,
+            children: [
+              InicioScreen(key: ValueKey(_inicioTick), onIrAEnVivo: _irAEnVivo),
+              LiveScreen(),
+              ProfileScreen(),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.podcasts_outlined),
-            selectedIcon: Icon(Icons.podcasts_rounded),
-            label: 'En vivo',
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _indice,
+            onDestinationSelected: _cambiarPestana,
+            backgroundColor: AppColors.surface,
+            indicatorColor: AppColors.limeGreen.withOpacity(0.25),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Inicio',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.podcasts_outlined),
+                selectedIcon: Icon(Icons.podcasts_rounded),
+                label: 'En vivo',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Perfil',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Perfil',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

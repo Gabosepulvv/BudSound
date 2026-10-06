@@ -9,6 +9,7 @@ import '../core/app_routes.dart';
 import '../models/user_role.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/colorblind_mode_service.dart';
 import '../services/mp_connect_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
@@ -71,8 +72,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final abrio = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!abrio && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo abrir el navegador.'),
+          SnackBar(
+            content: const Text('No se pudo abrir el navegador.'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -86,8 +87,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo iniciar la conexión con MercadoPago.'),
+          SnackBar(
+            content:
+                const Text('No se pudo iniciar la conexión con MercadoPago.'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -116,8 +118,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Desconectar',
-                style: TextStyle(color: AppColors.danger)),
+            child:
+                Text('Desconectar', style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -132,8 +134,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo desconectar la cuenta.'),
+          SnackBar(
+            content: const Text('No se pudo desconectar la cuenta.'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -178,8 +180,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final apellido = _apellidoController.text.trim();
     if (nombre.isEmpty || apellido.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nombre y apellido no pueden quedar vacíos.'),
+        SnackBar(
+          content: const Text('Nombre y apellido no pueden quedar vacíos.'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -213,14 +215,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_camera_outlined,
-                  color: AppColors.limeGreen),
+              leading:
+                  Icon(Icons.photo_camera_outlined, color: AppColors.limeGreen),
               title: const Text('Tomar foto',
                   style: TextStyle(color: AppColors.white)),
               onTap: () => Navigator.of(context).pop(_OpcionFoto.camara),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined,
+              leading: Icon(Icons.photo_library_outlined,
                   color: AppColors.limeGreen),
               title: const Text('Elegir de la galería',
                   style: TextStyle(color: AppColors.white)),
@@ -228,9 +230,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             if (tieneFoto)
               ListTile(
-                leading: const Icon(Icons.delete_outline_rounded,
-                    color: AppColors.danger),
-                title: const Text('Quitar foto',
+                leading:
+                    Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+                title: Text('Quitar foto',
                     style: TextStyle(color: AppColors.danger)),
                 onTap: () => Navigator.of(context).pop(_OpcionFoto.quitar),
               ),
@@ -346,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Center(
             child: Chip(
               backgroundColor: AppColors.background,
-              side: const BorderSide(color: AppColors.limeGreen),
+              side: BorderSide(color: AppColors.limeGreen),
               label: Text(
                 esDj ? 'Perfil DJ' : 'Perfil público',
                 style: const TextStyle(color: AppColors.lavender),
@@ -362,6 +364,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 16),
                   _tarjetaCobros(),
                 ],
+                const SizedBox(height: 16),
+                _tarjetaAccesibilidad(),
                 const SizedBox(height: 16),
                 _fila(
                   'Sesión',
@@ -468,9 +472,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (!_editando)
                 TextButton.icon(
                   onPressed: _empezarEdicion,
-                  icon: const Icon(Icons.edit_outlined,
+                  icon: Icon(Icons.edit_outlined,
                       size: 18, color: AppColors.limeGreen),
-                  label: const Text('Editar',
+                  label: Text('Editar',
                       style: TextStyle(color: AppColors.limeGreen)),
                 ),
             ],
@@ -581,17 +585,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             OutlinedButton(
               onPressed: _cargandoMp ? null : _desconectarMp,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.danger),
+                side: BorderSide(color: AppColors.danger),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               child: _cargandoMp
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: AppColors.danger),
                     )
-                  : const Text('Desconectar',
+                  : Text('Desconectar',
                       style: TextStyle(color: AppColors.danger)),
             )
           else
@@ -600,6 +604,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
               loading: _cargandoMp,
               onPressed: _conectarMp,
             ),
+        ],
+      ),
+    );
+  }
+
+  /// Reemplaza el verde lima y el rojo de error por azul/naranja — ver
+  /// app_colors.dart. Se guarda en el dispositivo y aplica a toda la app de
+  /// inmediato (ListenableBuilder en main.dart), sin reiniciar.
+  Widget _tarjetaAccesibilidad() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.visibility_outlined, size: 20, color: AppColors.limeGreen),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Modo daltónico',
+                    style: TextStyle(
+                        color: AppColors.white, fontWeight: FontWeight.w700)),
+                SizedBox(height: 2),
+                Text(
+                  'Cambia el verde y el rojo de la app por azul y naranja, más fáciles de distinguir.',
+                  style: TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: ColorblindModeService.instance.enabled,
+            activeThumbColor: AppColors.limeGreen,
+            onChanged: (valor) {
+              ColorblindModeService.instance.establecer(valor);
+              setState(() {});
+            },
+          ),
         ],
       ),
     );
@@ -650,14 +698,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             else
               const GlowLogo(size: 72),
             if (_subiendoFoto)
-              const CircularProgressIndicator(color: AppColors.limeGreen)
+              CircularProgressIndicator(color: AppColors.limeGreen)
             else
               Positioned(
                 bottom: -4,
                 right: -4,
                 child: Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.limeGreen,
                     shape: BoxShape.circle,
                   ),

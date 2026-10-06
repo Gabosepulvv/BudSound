@@ -29,8 +29,7 @@ class ItunesTrack {
   final int? durationMs;
 
   /// Portada a mayor resolución (truco documentado sobre artworkUrl100).
-  String get artworkGrande =>
-      artworkUrl.replaceAll('100x100bb', '400x400bb');
+  String get artworkGrande => artworkUrl.replaceAll('100x100bb', '400x400bb');
 
   factory ItunesTrack.fromJson(Map<String, dynamic> json) {
     return ItunesTrack(

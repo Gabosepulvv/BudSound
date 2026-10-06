@@ -140,9 +140,9 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
       await _cargarCola();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Evento cerrado. Abajo queda el resumen de recaudación.'),
+        SnackBar(
+          content: const Text(
+              'Evento cerrado. Abajo queda el resumen de recaudación.'),
           backgroundColor: AppColors.limeDark,
         ),
       );
@@ -167,7 +167,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
           if (_evento.activo)
             TextButton(
               onPressed: _cerrarEvento,
-              child: const Text('Cerrar evento',
+              child: Text('Cerrar evento',
                   style: TextStyle(color: AppColors.danger)),
             ),
         ],
@@ -197,8 +197,8 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
             ),
             const SizedBox(height: 10),
             if (_cargando)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
                     child:
                         CircularProgressIndicator(color: AppColors.limeGreen)),
@@ -246,7 +246,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.danger),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Icon(Icons.wifi_off_rounded, color: AppColors.danger, size: 18),
           SizedBox(width: 8),
@@ -405,7 +405,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
             ),
             if (solicitud.pendiente)
               resolviendo
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
@@ -415,19 +415,19 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                       children: [
                         IconButton(
                           onPressed: () => _resolver(solicitud, aceptar: false),
-                          icon: const Icon(Icons.close_rounded,
+                          icon: Icon(Icons.close_rounded,
                               color: AppColors.danger),
                         ),
                         IconButton(
                           onPressed: () => _resolver(solicitud, aceptar: true),
-                          icon: const Icon(Icons.check_circle_rounded,
+                          icon: Icon(Icons.check_circle_rounded,
                               color: AppColors.limeGreen),
                         ),
                       ],
                     )
             else if (solicitud.aceptada && !solicitud.reproducida)
               resolviendo
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(

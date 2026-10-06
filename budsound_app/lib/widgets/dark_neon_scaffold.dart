@@ -40,7 +40,7 @@ class _DarkNeonScaffoldState extends State<DarkNeonScaffold>
       appBar: widget.appBar,
       body: Stack(
         children: [
-          const DecoratedBox(
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -68,8 +68,8 @@ class _DarkNeonScaffoldState extends State<DarkNeonScaffold>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.limeGreen.withOpacity(
-                              0.10 + 0.08 * _respiracion.value),
+                          color: AppColors.limeGreen
+                              .withOpacity(0.10 + 0.08 * _respiracion.value),
                           blurRadius: 120,
                           spreadRadius: 40,
                         ),

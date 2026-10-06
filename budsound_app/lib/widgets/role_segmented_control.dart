@@ -33,7 +33,7 @@ class RoleSegmentedControl extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
                 gradient: selected
-                    ? const LinearGradient(
+                    ? LinearGradient(
                         colors: [AppColors.limeGreen, AppColors.limeDark],
                       )
                     : null,

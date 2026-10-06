@@ -55,7 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.limeGreen,
               surface: AppColors.surface,
             ),
@@ -88,8 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       email: _emailController.text.trim(),
       fechaNacimiento: _fechaNacimiento!,
       rol: _rol,
-      nombreArtistico:
-          _rol == UserRole.dj ? _djController.text.trim() : null,
+      nombreArtistico: _rol == UserRole.dj ? _djController.text.trim() : null,
     );
 
     final result = await _auth.registrar(
@@ -128,7 +127,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        icon: const Icon(Icons.mark_email_read_outlined,
+        icon: Icon(Icons.mark_email_read_outlined,
             color: AppColors.limeGreen, size: 36),
         title: const Text('Revisa tu correo',
             style: TextStyle(color: AppColors.white)),
@@ -140,8 +139,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Entendido',
-                style: TextStyle(color: AppColors.limeGreen)),
+            child:
+                Text('Entendido', style: TextStyle(color: AppColors.limeGreen)),
           ),
         ],
       ),
@@ -180,8 +179,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Icons.person_outline_rounded,
                       color: AppColors.muted,
                     ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Ingresa tu nombre' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Ingresa tu nombre'
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   BudsoundTextField(

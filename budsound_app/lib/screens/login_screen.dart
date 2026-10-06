@@ -137,11 +137,10 @@ class _LoginScreenState extends State<LoginScreen> {
               NeonGradientButton(
                 label: 'Continuar',
                 onPressed: () {
-                  if (rol == UserRole.dj &&
-                      djController.text.trim().isEmpty) {
+                  if (rol == UserRole.dj && djController.text.trim().isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Ingresa tu nombre artístico.'),
+                      SnackBar(
+                        content: const Text('Ingresa tu nombre artístico.'),
                         backgroundColor: AppColors.danger,
                       ),
                     );
@@ -169,7 +168,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _mostrarResultado(bool ok, String? texto) {
-    final esCorreoSinVerificar = !ok && (texto?.contains('Verifica tu correo') ?? false);
+    final esCorreoSinVerificar =
+        !ok && (texto?.contains('Verifica tu correo') ?? false);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -310,7 +310,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         onTap: () {
                           Navigator.of(context).pushNamed(AppRoutes.register);
                         },
-                        child: const Text(
+                        child: Text(
                           'Crear cuenta',
                           style: TextStyle(
                             color: AppColors.limeGreen,

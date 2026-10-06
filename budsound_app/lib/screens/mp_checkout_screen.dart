@@ -56,7 +56,8 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
   Future<void> _iniciar() async {
     final String checkoutToken;
     try {
-      checkoutToken = await _requestService.obtenerTokenCheckout(widget.eventId);
+      checkoutToken =
+          await _requestService.obtenerTokenCheckout(widget.eventId);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -150,10 +151,10 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
           if (_errorInicial != null)
             Center(
               child: Text(_errorInicial!,
-                  style: const TextStyle(color: AppColors.danger)),
+                  style: TextStyle(color: AppColors.danger)),
             ),
           if (_cargando)
-            const Center(
+            Center(
               child: CircularProgressIndicator(color: AppColors.limeGreen),
             ),
         ],

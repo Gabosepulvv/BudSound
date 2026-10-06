@@ -129,8 +129,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       if (!mounted) return;
       _tabController.animateTo(1);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Solicitud enviada al DJ'),
+        SnackBar(
+            content: const Text('Solicitud enviada al DJ'),
             backgroundColor: AppColors.limeDark),
       );
       return;
@@ -150,8 +150,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       if (!mounted) return;
       _tabController.animateTo(1);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Solicitud enviada al DJ'),
+        SnackBar(
+            content: const Text('Solicitud enviada al DJ'),
             backgroundColor: AppColors.limeDark),
       );
     } on ApiException catch (e) {
@@ -179,8 +179,9 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       if (!mounted) return;
       _tabController.animateTo(1);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sin conexión: se enviará sola apenas vuelva la señal'),
+        SnackBar(
+          content: const Text(
+              'Sin conexión: se enviará sola apenas vuelva la señal'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -291,8 +292,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                   final monto = int.tryParse(controller.text.trim()) ?? 0;
                   if (monto != 0 && (monto < 500 || monto > 20000)) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
+                      SnackBar(
+                        content: const Text(
                             'El monto debe ser entre \$500 y \$20.000 CLP.'),
                         backgroundColor: AppColors.danger,
                       ),
@@ -301,8 +302,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                   }
                   if (monto > 0 && !aceptaTerminos) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
+                      SnackBar(
+                        content: const Text(
                             'Acepta los Términos y Condiciones para enviar una propina.'),
                         backgroundColor: AppColors.danger,
                       ),
@@ -352,7 +353,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       color: AppColors.danger.withOpacity(0.15),
-      child: const Row(
+      child: Row(
         children: [
           Icon(Icons.wifi_off_rounded, color: AppColors.danger, size: 18),
           SizedBox(width: 8),
@@ -389,7 +390,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           ),
         ),
         if (_buscando)
-          const Expanded(
+          Expanded(
               child: Center(
                   child: CircularProgressIndicator(color: AppColors.limeGreen)))
         else
@@ -438,8 +439,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(color: AppColors.muted),
                               ),
-                              trailing: const Icon(
-                                  Icons.add_circle_outline_rounded,
+                              trailing: Icon(Icons.add_circle_outline_rounded,
                                   color: AppColors.limeGreen),
                             ),
                           ),
@@ -501,8 +501,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           const SizedBox(
             width: 16,
             height: 16,
-            child:
-                CircularProgressIndicator(strokeWidth: 2, color: AppColors.muted),
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: AppColors.muted),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -592,9 +592,9 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           // cuando el DJ acepta (ver McpCheckoutScreen) — no hay un paso de
           // pago manual aparte que el Participante tenga que hacer acá.
           if (solicitud.aceptada && solicitud.tienePropina)
-            const Text('Pagado',
-                style:
-                    TextStyle(color: AppColors.limeGreen, fontWeight: FontWeight.w700)),
+            Text('Pagado',
+                style: TextStyle(
+                    color: AppColors.limeGreen, fontWeight: FontWeight.w700)),
         ],
       ),
     );

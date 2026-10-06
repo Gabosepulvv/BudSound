@@ -64,7 +64,7 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.qr_code_scanner_rounded,
+            Icon(Icons.qr_code_scanner_rounded,
                 size: 72, color: AppColors.limeGreen),
             const SizedBox(height: 16),
             const Text(

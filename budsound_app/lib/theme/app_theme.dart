@@ -17,7 +17,8 @@ class _FadeThroughTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final curva = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+    final curva =
+        CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
     return FadeTransition(
       opacity: curva,
       child: SlideTransition(
@@ -36,7 +37,7 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData get dark {
-    final colorScheme = const ColorScheme.dark(
+    final colorScheme = ColorScheme.dark(
       primary: AppColors.limeGreen,
       secondary: AppColors.limeDark,
       surface: AppColors.surface,
@@ -87,15 +88,15 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: AppColors.limeGreen, width: 1.6),
+          borderSide: BorderSide(color: AppColors.limeGreen, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: AppColors.danger),
+          borderSide: BorderSide(color: AppColors.danger),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: AppColors.danger, width: 1.6),
+          borderSide: BorderSide(color: AppColors.danger, width: 1.6),
         ),
       ),
       textTheme: const TextTheme(
