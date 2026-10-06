@@ -456,6 +456,62 @@ ruta con espacios, es el primer sospechoso si vuelve a aparecer ese error.
 guardado" y "el token está guardado de forma que alguien con el celular en
 la mano, pero sin la contraseña, no puede simplemente leerlo".
 
+## 20. Split de pagos por DJ: OAuth en el navegador del sistema, nunca en un WebView propio
+
+**Problema:** hasta ahora, todas las propinas de todos los eventos se
+cobraban en una sola cuenta de MercadoPago (la de BudSound) — la decisión
+de arquitectura ya tomada en la Fase 1 ("¿A quién le llega la plata
+primero?", Opción A) decía que cada DJ debía recibir su parte directo en
+su propia cuenta, pero eso no estaba implementado.
+
+**Qué se hizo:** MercadoPago ofrece OAuth como "marketplace": un DJ
+autoriza a BudSound a operar pagos a nombre de su cuenta, y cada pago lleva
+un `application_fee` que MercadoPago retiene aparte para la plataforma —
+así el dinero nunca pasa por una cuenta de BudSound, va directo del
+Participante al DJ, menos la comisión. El flujo:
+
+1. El DJ toca "Conectar MercadoPago" en su Perfil. El backend arma la URL
+   de autorización con un `state` firmado (JWT de 10 minutos, con
+   `purpose: 'mp-connect'` para que no se pueda reusar un JWT de sesión
+   cualquiera como si fuera un state — mismo cuidado que con el token de
+   checkout, entrada 18).
+2. **Esa URL se abre en el navegador del sistema (`url_launcher`,
+   `LaunchMode.externalApplication`), nunca en un WebView controlado por la
+   app.** El DJ inicia sesión con su contraseña de MercadoPago ahí — pedirle
+   su contraseña a una pantalla que nosotros controlamos sería exactamente
+   el antipatrón que se evitó en la entrada 18 (JWT en un WebView con JS de
+   terceros), aplicado a algo todavía más sensible: la contraseña real de
+   su cuenta de banco/pago.
+3. MercadoPago redirige a `GET /api/dj/mercadopago/callback` (una ruta del
+   backend, pública — la llama el navegador, no la app) con un `code`. El
+   backend lo cambia por `access_token`/`refresh_token` y los guarda en la
+   fila del DJ. Esa página responde un HTML simple ("vuelve a la app"); no
+   hay deep link de vuelta a la app todavía, así que el DJ vuelve a mano y
+   la pantalla de Perfil tiene un botón de refrescar para confirmar la
+   conexión.
+4. Al crear una solicitud con propina, el backend busca si el DJ del
+   evento tiene una conexión guardada (`obtenerAccessTokenVigente`, que de
+   paso renueva el token solo si está por vencer) — si la tiene, autoriza
+   el pago con SU token y `application_fee`; si no, cae al comportamiento
+   de siempre (cuenta central de BudSound). Capturar/cancelar más tarde
+   usan el mismo criterio, porque MercadoPago exige operar un pago desde la
+   misma cuenta que lo autorizó.
+
+**Por qué no se guardó "con qué cuenta se autorizó" en la transacción:**
+se decidió re-consultar la conexión actual del DJ en vez de guardar un
+snapshot — es una fila menos que mantener sincronizada, y el caso donde un
+DJ desconecta su cuenta entre que autoriza una propina y la acepta es raro
+y ya falla de forma segura (MercadoPago rechaza operar el pago con una
+cuenta que no lo autorizó, en vez de cobrarlo silenciosamente en el lugar
+equivocado).
+
+**Por qué importa para la defensa:** mismo flujo de pago (autorizar →
+capturar/cancelar) que ya existía, extendido para soportar dos "cuentas
+destino" sin bifurcar el código en dos caminos separados — y una decisión
+de seguridad consistente con la entrada 18: cuando hay credenciales reales
+de por medio (sesión, contraseña de un banco), el lugar más seguro para
+ingresarlas es fuera del control de la propia app.
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más

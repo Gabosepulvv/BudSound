@@ -276,9 +276,17 @@ Spotify/YouTube — hay que poder explicarla en la defensa:
   proyecto de título.
 - **Por qué A:** mismo argumento que con el riesgo legal — mantener a
   BudSound fuera de la cadena de custodia del dinero tanto como sea
-  posible. Cuando existan credenciales de MercadoPago, cada DJ deberá
-  conectar su propia cuenta (OAuth de MercadoPago como marketplace) antes
-  de poder recibir solicitudes con propina.
+  posible.
+- **Estado actual del código: implementado.** Cada DJ conecta su propia
+  cuenta desde Perfil → "Cobros" → "Conectar MercadoPago" (OAuth, login en
+  el navegador del sistema — nunca un WebView propio, ver
+  `mercadopago-oauth.service.js` y DECISIONES_TECNICAS.md). Con la cuenta
+  conectada, la propina se autoriza directo en la cuenta del DJ con
+  `application_fee` = la comisión de BudSound; sin conectar, sigue
+  cobrándose en la cuenta central (comportamiento sin split, como antes) —
+  mismo patrón resiliente que MercadoPago/Google/SMTP: una capa que se
+  activa sola cuando hay credenciales. Ver "Split de pagos por DJ — setup
+  pendiente" más abajo.
 
 ### 8. Revisión de seguridad del backend/app (2026-10)
 
@@ -320,7 +328,41 @@ entradas 16-19):
 - **Corregido — errores 500 con mensaje interno crudo:** `error.middleware.js`
   ahora responde un mensaje genérico en los 500 (y lo loguea completo solo
   en el servidor); los errores controlados (400/401/403/404/409) siguen
-  mostrando su mensaje normal, pensado para mostrarse.
+  mostrando su mensaje normal, pensado para mostrarse. (Ojo al tocar este
+  archivo: debe distinguir por `instanceof ApiError`, no por el número de
+  status — un `ApiError(503, ...)` también es intencional y su mensaje es
+  seguro de mostrar, aunque 503 sea "quinientos".)
+
+## Split de pagos por DJ — setup pendiente
+
+El código ya está (backend y app — ver riesgo 7 más arriba), pero no
+funciona todavía porque hace falta un segundo par de credenciales de
+MercadoPago (distinto del Access Token/Public Key que ya se usa para
+cobrar propinas):
+
+1. En el panel de MercadoPago, dentro de tu aplicación → **Credenciales** →
+   pestaña **OAuth** (no la de "Credenciales de producción/prueba" que ya
+   se usó antes). Ahí están el **Client ID** y el **Client Secret** del
+   flujo OAuth.
+2. En `budsound_backend/.env`:
+   - `MERCADOPAGO_CLIENT_ID=...`
+   - `MERCADOPAGO_CLIENT_SECRET=...`
+3. `PUBLIC_URL` (la misma variable que ya existe para el correo de
+   verificación) tiene que apuntar a donde el backend sea alcanzable desde
+   afuera — MercadoPago redirige ahí
+   (`$PUBLIC_URL/api/dj/mercadopago/callback`) después de que el DJ
+   autoriza la conexión. En local no sirve de mucho por la misma razón que
+   con el correo (el navegador del DJ no puede llegar a tu `localhost`);
+   cobra sentido real con Railway desplegado.
+4. Con eso puesto, cualquier DJ puede ir a **Perfil → Cobros → Conectar
+   MercadoPago**, lo que abre el login de MercadoPago en el navegador del
+   celular (nunca dentro de la app). Al autorizar, MercadoPago lo manda de
+   vuelta a una página del backend que confirma la conexión y le pide
+   volver a la app.
+5. Probar: con el DJ conectado, una propina de prueba en uno de sus
+   eventos debería crear el pago en SU cuenta de MercadoPago (revisar en
+   su propio panel de "Actividad"), con la comisión de BudSound retenida
+   aparte.
 
 ## Verificación de correo al registrarse — setup pendiente
 
