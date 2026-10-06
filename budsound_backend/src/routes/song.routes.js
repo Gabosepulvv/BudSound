@@ -5,5 +5,6 @@ const { requireAuth } = require('../middleware/auth.middleware');
 const router = Router();
 
 router.get('/search', requireAuth, songController.buscar);
+router.get('/top', requireAuth, songController.top);
 
 module.exports = router;

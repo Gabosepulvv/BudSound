@@ -72,12 +72,16 @@ CREATE TABLE song_requests (
   titulo            TEXT NOT NULL,
   artista           TEXT NOT NULL,
   artwork_url       TEXT,
-  monto_clp         INTEGER NOT NULL DEFAULT 0 CHECK (monto_clp = 0 OR monto_clp BETWEEN 500 AND 20000),
+  -- La propina es obligatoria para pedir una canción (decisión post-MVP —
+  -- antes era opcional, ver DECISIONES_TECNICAS.md). Múltiplo de 50 para
+  -- que el monto se pueda pagar en efectivo sin vueltas raras: termina en
+  -- 0 y la decena es 0 o 5 (ej. 600, 650, 700).
+  monto_clp         INTEGER NOT NULL CHECK (monto_clp BETWEEN 500 AND 20000 AND monto_clp % 50 = 0),
   -- El participante debe aceptar explícitamente que no hay devolución una
   -- vez que el DJ acepta (riesgo "El participante pide la devolución del
-  -- dinero" en CLAUDE.md). Obligatorio solo cuando hay propina.
-  terminos_aceptados BOOLEAN NOT NULL DEFAULT false
-                      CHECK (monto_clp = 0 OR terminos_aceptados = true),
+  -- dinero" en CLAUDE.md) — ahora siempre obligatorio, toda solicitud lleva
+  -- propina.
+  terminos_aceptados BOOLEAN NOT NULL CHECK (terminos_aceptados = true),
   status            request_status NOT NULL DEFAULT 'PENDIENTE',
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at       TIMESTAMPTZ,

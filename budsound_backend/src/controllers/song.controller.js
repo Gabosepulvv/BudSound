@@ -10,4 +10,11 @@ const buscar = asyncHandler(async (req, res) => {
   res.json({ resultados });
 });
 
-module.exports = { buscar };
+// Canciones populares para que la pantalla de pedir una canción no arranque
+// vacía — ver itunes.service.js.
+const top = asyncHandler(async (req, res) => {
+  const resultados = await itunesService.topCanciones();
+  res.json({ resultados });
+});
+
+module.exports = { buscar, top };

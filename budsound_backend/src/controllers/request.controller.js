@@ -52,17 +52,26 @@ const crear = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Faltan datos de la canción.');
   }
 
+  // La propina es obligatoria para pedir una canción (decisión post-MVP,
+  // ver DECISIONES_TECNICAS.md) — múltiplo de 50 para que se pueda pagar
+  // en efectivo sin vueltas raras. Mismas reglas que el CHECK de
+  // song_requests en schema.sql: esto no es solo para dar un mensaje de
+  // error más claro, es la última barrera si alguien se salta la app y
+  // pega directo contra la API.
   const monto = Number(montoClp) || 0;
-  if (monto !== 0 && (monto < MONTO_MIN || monto > MONTO_MAX)) {
-    throw new ApiError(400, `El monto debe ser entre $${MONTO_MIN} y $${MONTO_MAX} CLP.`);
+  if (monto < MONTO_MIN || monto > MONTO_MAX || monto % 50 !== 0) {
+    throw new ApiError(
+      400,
+      `El monto debe ser entre $${MONTO_MIN} y $${MONTO_MAX} CLP, en múltiplos de $50.`,
+    );
   }
-  // Con propina, el participante debe aceptar explícitamente que no hay
-  // devolución una vez que el DJ acepte (ver CLAUDE.md, riesgo "El
-  // participante pide la devolución del dinero").
-  if (monto > 0 && !terminosAceptados) {
+  // El participante debe aceptar explícitamente que no hay devolución una
+  // vez que el DJ acepte (ver CLAUDE.md, riesgo "El participante pide la
+  // devolución del dinero").
+  if (!terminosAceptados) {
     throw new ApiError(400, 'Debes aceptar los Términos y Condiciones para enviar una propina.');
   }
-  const pagoReal = monto > 0 && mercadopagoService.credencialesListas();
+  const pagoReal = mercadopagoService.credencialesListas();
   if (pagoReal && !cardToken) {
     throw new ApiError(400, 'Falta el método de pago para la propina.');
   }
