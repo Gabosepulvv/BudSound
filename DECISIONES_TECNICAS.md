@@ -566,6 +566,34 @@ mirando.
 
 ---
 
+## 22. El WebView de pago falla con POST nativo: se hace el POST aparte y se carga el HTML ya resuelto
+
+**Problema:** al probar el pago real en el emulador, `McpCheckoutScreen`
+mostraba la pantalla de error nativa de Android ("Webpage not available")
+en vez del formulario de MercadoPago. La pantalla usaba
+`WebViewController.loadRequest(uri, method: post, body: ...)` para que el
+WebView mandara el POST directo — es un patrón con fallas conocidas en la
+implementación Android de `webview_flutter` (el `postUrl` nativo maneja
+mal un body JSON con headers custom).
+
+**Qué se hizo:** el POST a `/pay/checkout` se hace con el cliente HTTP
+normal de la app (`package:http`, el mismo que usa el resto de la app y
+nunca tuvo este problema), y recién con el HTML de la respuesta en mano se
+lo pasa al WebView con `loadHtmlString(html, baseUrl: ...)`. El `baseUrl`
+es necesario porque esa página hace `fetch('/api/events/...')` con una
+ruta relativa (ver `checkout.controller.js`) — sin `baseUrl` esa ruta
+relativa resolvería contra `about:blank` en vez del backend.
+
+**Por qué importa para la defensa:** es un ejemplo de no asumir que toda
+la superficie de una librería (acá, `loadRequest` con POST) está igual de
+probada — la ruta GET es la que casi todo el mundo usa y la que mejor
+funciona; mover la parte riesgosa (el POST) a una librería HTTP genérica
+en vez de dejársela al WebView nativo es más confiable y, de paso, más
+fácil de debuggear (los errores de red quedan en el log de Dart, no en una
+pantalla de error nativa sin detalle).
+
+---
+
 _Última actualización: se va completando a medida que aparecen más
 decisiones de este tipo. Si el equipo agrega algo parecido, vale la pena
 sumarlo acá con el mismo formato._
