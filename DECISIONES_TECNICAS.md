@@ -321,6 +321,69 @@ de ~30 líneas en un solo lugar — y que un mismo color puede necesitar dos
 tratamientos de contraste distintos (texto encima vs. acento sobre fondo
 oscuro) según dónde se use.
 
+## 16. Sockets sin autenticación obligatoria: cualquiera podía escuchar la cola de un evento ajeno
+
+**Problema:** `io.use(...)` verificaba el JWT solo si venía uno — si el
+socket se conectaba sin token, igual pasaba (`socket.user = null`) en vez
+de ser rechazado. Y `event:join` unía al socket a la sala
+`event:<id>` que pidiera, sin comprobar que esa sala existiera ni que
+quien pedía unirse tuviera algo que ver con ese evento. En la práctica:
+alguien que se enterara (o adivinara) el id de un evento ajeno podía
+escuchar en tiempo real sus solicitudes de canciones y pagos aprobados,
+sin siquiera tener una cuenta en BudSound.
+
+**Qué se hizo:** el handshake ahora exige un JWT válido para conectarse
+(`next(new Error(...))` si falta o es inválido — el socket ni siquiera
+llega a `connection`). `event:join` pasó a ser `async`: busca el evento
+en la base antes de unir, y si quien se une tiene rol DJ, exige que sea el
+dueño (`event.dj_id === socket.user.sub`) — mismo criterio que ya se usaba
+en las rutas REST de eventos (`event.controller.js`), solo que acá nunca
+se había aplicado. Un Participante puede unirse a cualquier evento que
+exista (es la intención: el QR es público a propósito), pero ya no a una
+sala que ni siquiera corresponde a un evento real.
+
+**Por qué importa para la defensa:** es el ejemplo clásico de que "cada
+endpoint REST valida su dueño" no alcanza si hay un segundo canal (acá,
+Socket.io) con sus propias reglas de acceso — hay que auditar los dos por
+separado, no asumir que una autorización que ya se hizo en un lado cubre
+al otro.
+
+## 17. Verificación de correo: confirmar con un clic, sin bloquear el desarrollo sin SMTP
+
+**Problema:** `POST /auth/register` aceptaba cualquier correo sin
+confirmar que quien se registraba fuera dueño de esa casilla — alguien
+podía crear una cuenta de DJ con el correo real de otra persona del
+equipo (o de cualquiera) y usar la app como si fuera ella.
+
+**Qué se hizo:** al registrarse (si hay SMTP configurado — ver
+`email.service.js` y `credencialesListas()`, mismo patrón que
+MercadoPago/Google) se genera un token aleatorio de 32 bytes, se guarda
+**hasheado con SHA-256** en `verificacion_token_hash` (nunca el token en
+texto plano — mismo principio que un password hash: si la base se filtra,
+nadie arma el link de otra persona con lo que queda ahí) y se manda un
+correo con un botón a `GET /api/auth/verify-email?token=...`. Ese
+endpoint es público a propósito (quien lo abre es un navegador llegando
+desde el correo, no la app) y hace la verificación y limpieza del token en
+una sola query atómica (`UPDATE ... WHERE token_hash = $1 AND expira >
+now() RETURNING ...`), así que un link reusado o vencido simplemente no
+encuentra fila y falla con un mensaje claro. `iniciarSesion` rechaza con
+403 a quien todavía no haya confirmado. Las cuentas creadas con Google
+quedan verificadas de inmediato (Google ya confirmó `email_verified` en el
+id token — pedir que lo reconfirmen hubiera sido redundante).
+
+**Por qué el registro NO queda bloqueado sin credenciales SMTP:** mismo
+criterio que ya existía para MercadoPago y Google en este proyecto — una
+capa de seguridad extra no debería impedirle a nadie del equipo levantar
+el proyecto en su máquina solo porque no configuró un proveedor de correo.
+Sin SMTP, `email_verificado` se marca `true` al crear la cuenta y todo
+sigue funcionando exactamente como antes de este cambio.
+
+**Por qué importa para la defensa:** token de un solo uso, hasheado, con
+vencimiento, y una verificación que es una sola operación atómica en vez
+de "buscar y después actualizar" (que tendría una ventana de carrera) — es
+el mismo nivel de cuidado que ya se usa para las contraseñas (bcrypt) y
+para los pagos (autorizar/capturar), aplicado a un tercer flujo sensible.
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más

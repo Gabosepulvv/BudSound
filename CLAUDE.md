@@ -280,6 +280,57 @@ Spotify/YouTube — hay que poder explicarla en la defensa:
   conectar su propia cuenta (OAuth de MercadoPago como marketplace) antes
   de poder recibir solicitudes con propina.
 
+### 8. Revisión de seguridad del backend/app (2026-10)
+
+Auditoría manual de auth, pagos, sockets y SQL. Dos hallazgos de
+prioridad alta ya corregidos; el resto queda anotado para una próxima
+pasada (ver detalle y justificación de cada uno en DECISIONES_TECNICAS.md,
+entradas 16 y 17):
+
+- **Corregido — sockets sin autenticación obligatoria:** un socket podía
+  conectarse sin JWT y unirse a la sala de cualquier evento (`event:join`)
+  sin verificar nada. Ahora el handshake exige un token válido y
+  `event:join` confirma que el evento existe (y que el DJ sea dueño antes
+  de dejarlo entrar) — ver `sockets/index.js`.
+- **Corregido — registro sin verificar el correo:** cualquiera podía
+  crear una cuenta con el email de otra persona. Ahora, si hay SMTP
+  configurado, el registro manda un correo con un link de un solo click
+  que confirma la cuenta (`GET /api/auth/verify-email`) y el login la
+  rechaza hasta que se confirme — ver `email.service.js` y "Login con
+  Google" abajo (mismo patrón: sin credenciales SMTP, esta capa queda
+  apagada y la app funciona como antes).
+- **Pendientes (prioridad media/baja, no bloquean el MVP):** el JWT de
+  sesión completo viaja dentro del WebView de pago de MercadoPago en vez
+  de un token acotado solo a esa operación; ese WebView no restringe a qué
+  dominios puede navegar; el webhook de MercadoPago no valida que el
+  `paymentId` recibido sea numérico antes de usarlo en la URL de su API;
+  el JWT se guarda sin cifrar en el celular (`SharedPreferences` en vez de
+  `flutter_secure_storage`); los errores 500 devuelven el mensaje interno
+  crudo al cliente.
+
+## Verificación de correo al registrarse — setup pendiente
+
+Igual que MercadoPago y Google: el código ya está, pero mientras no haya
+credenciales SMTP en `budsound_backend/.env`, el registro no exige
+verificar el correo (se crea la cuenta y queda logueada de una, como
+antes). Para activarlo:
+
+1. Conseguir credenciales SMTP. La opción más simple para probar: Gmail
+   con una
+   ["contraseña de aplicación"](https://myaccount.google.com/apppasswords)
+   (no la contraseña normal de la cuenta — Gmail exige 2FA activado para
+   poder generarla).
+2. En `budsound_backend/.env`: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`,
+   `SMTP_USER=<tu correo>`, `SMTP_PASS=<la contraseña de aplicación>`.
+3. `PUBLIC_URL` debe apuntar a donde el backend sea alcanzable desde
+   afuera (el link del correo se arma con esto) — en local no sirve de
+   mucho porque el celular de quien reciba el correo no puede llegar a tu
+   `localhost`; esto cobra sentido real recién con Railway desplegado (ver
+   RAILWAY_DEPLOY.md), seteando `PUBLIC_URL` al dominio que genera ahí.
+4. Con eso puesto, `POST /auth/register` deja de devolver `token` de
+   inmediato: devuelve `{ requiereVerificacion: true, email }` y la
+   persona debe tocar el link del correo antes de poder iniciar sesión.
+
 ## Login con Google — setup pendiente
 
 El código ya está (backend y app), pero no funciona todavía porque hace
