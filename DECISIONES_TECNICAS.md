@@ -514,6 +514,58 @@ ingresarlas es fuera del control de la propia app.
 
 ---
 
+## 21. Modo daltónico: colores como getters, no `const` — y por qué `ShellScreen` necesita su propio listener
+
+**Problema:** se pidió un modo accesible para daltonismo. La app usa verde
+lima como color de marca y rojo para errores — justo la combinación que
+menos distingue alguien con protanopia/deuteranopia (daltonismo rojo-verde,
+el tipo más común con diferencia sobre los otros). La solución de diseño
+era clara (reemplazar esos dos colores por azul/naranja, que sí se
+distinguen bien entre sí independiente del tipo de daltonismo), pero
+activarlo en tiempo real resultó más enredado de lo esperado.
+
+**Qué se intentó primero y se descartó:** aplicar un filtro de color
+global (`ColorFiltered`) sobre toda la app. Es la técnica que usan los
+sistemas operativos para "corrección de color", pero tiñe absolutamente
+todo por igual — el fondo azul marino, las fotos de perfil, el arte de las
+canciones de iTunes — no solo los dos colores que realmente necesitan
+cambiar. Se descartó por una solución más quirúrgica: cambiar solo
+`AppColors.limeGreen`, `limeDark` y `danger`.
+
+**El problema técnico:** esos tres pasaron de `static const Color` a
+`static Color get` (leen `ColorblindModeService.instance.enabled`). Un
+getter no es una constante de compilación, así que **cualquier** `const
+TextStyle(color: AppColors.danger)` (o `BorderSide`, `Icon`, `SnackBar`,
+etc.) en toda la app dejaba de compilar — fueron ~45 sitios en 12 archivos.
+No había forma de evitar tocar cada uno: se sacó la palabra `const` de cada
+constructor que dejó de ser una constante válida (nunca de sus hijos no
+relacionados), verificando con `flutter analyze` hasta dejar el proyecto en
+cero errores.
+
+**El segundo problema, más sutil:** con los colores ya dinámicos, tocar el
+switch en Perfil no se reflejaba en las otras pestañas (Inicio, En vivo)
+hasta salir y volver a entrar. Causa: `ShellScreen` mantiene las tres
+pestañas vivas con un `IndexedStack`, y dos de ellas se instanciaban como
+`const LiveScreen()` / `const ProfileScreen()` — una instancia `const` es
+literalmente el mismo objeto en cada rebuild, así que Flutter nunca vuelve
+a construirla aunque el padre sí se reconstruya (es la misma optimización
+que normalmente ayuda al rendimiento, acá jugaba en contra). La solución:
+sacarles el `const` a esos dos widgets Y envolver el `build()` de
+`ShellScreen` en su propio `ListenableBuilder` sobre el mismo servicio —
+escuchar el cambio "cerca" de donde vive el `IndexedStack`, en vez de
+confiar en que se propague solo desde `MaterialApp` varios niveles más
+arriba (que no era seguro que sucediera, por el mismo motivo del `const`).
+
+**Por qué importa para la defensa:** un cambio de "accesibilidad" que
+suena a una sola línea (cambiar dos colores) terminó siendo una lección
+concreta sobre cómo interactúan `const` y el árbol de widgets de Flutter —
+y por qué "reconstruir el padre" no garantiza que el hijo se reconstruya,
+dos cosas fáciles de pasar por alto hasta que un toggle en tiempo real deja
+de funcionar silenciosamente en una pantalla que no es la que se está
+mirando.
+
+---
+
 _Última actualización: se va completando a medida que aparecen más
 decisiones de este tipo. Si el equipo agrega algo parecido, vale la pena
 sumarlo acá con el mismo formato._

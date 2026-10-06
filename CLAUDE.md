@@ -125,6 +125,19 @@ roles en estructura pero con contenido distinto:
   (`ParticipantJoinScreen` → `ParticipantEventScreen`).
 - **Perfil** (`ProfileScreen`) — datos de sesión y cerrar sesión.
 
+## Accesibilidad
+
+- **Modo daltónico** (toggle en Perfil, `ColorblindModeService`): reemplaza
+  el verde lima y el rojo de la app (`AppColors.limeGreen`/`limeDark`/
+  `danger`) por azul/naranja — para protanopia/deuteranopia (daltonismo
+  rojo-verde, el más común con diferencia) esos dos son justo los colores
+  más difíciles de distinguir, mientras que el eje azul-amarillo se
+  conserva casi intacto. Se guarda en el dispositivo (`SharedPreferences`)
+  y aplica a toda la app al toque, sin reiniciar — ver
+  DECISIONES_TECNICAS.md para el porqué del diseño (getters en vez de
+  colores `const`, y por qué `ShellScreen` necesita su propio
+  `ListenableBuilder`).
+
 ## Alcance del MVP
 
 **Incluye:** registro/login con rol, creación de evento con QR (DJ) e
