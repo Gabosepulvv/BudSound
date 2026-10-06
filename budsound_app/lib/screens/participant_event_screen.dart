@@ -226,94 +226,212 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
   /// checkbox de Términos y Condiciones es obligatorio: una vez que el DJ
   /// acepta la solicitud no hay devolución (ver CLAUDE.md, riesgo "El
   /// participante pide la devolución del dinero").
+  static String _formatearClp(int valor) =>
+      valor >= 1000 ? '\$${valor ~/ 1000}.000' : '\$$valor';
+
+  static const List<int> _montosPredefinidos = [
+    500,
+    1000,
+    2000,
+    5000,
+    10000,
+    20000
+  ];
+
+  /// Diálogo flotante y centrado (no un bottom sheet, que quedaba muy
+  /// escondido abajo) con montos predefinidos entre $500 y $20.000 — nunca
+  /// hay que escribir un número ni se puede salir de ese rango por error.
   Future<(int, bool)?> _elegirMonto(ItunesTrack pista) async {
-    final controller = TextEditingController();
+    var conPropina = false;
+    var monto = _montosPredefinidos.first;
     var aceptaTerminos = false;
-    return showModalBottomSheet<(int, bool)>(
+
+    return showDialog<(int, bool)>(
       context: context,
-      backgroundColor: AppColors.surface,
-      isScrollControlled: true,
+      barrierDismissible: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, setState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: 20 + MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                pista.trackName,
-                style: const TextStyle(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16),
-              ),
-              Text(pista.artistName,
-                  style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 16),
-              const Text(
-                'Propina opcional para el DJ (\$500 - \$20.000 CLP). '
-                'No garantiza que suene, es solo un incentivo.',
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: AppColors.white),
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Monto en CLP (opcional)',
-                  hintText: '0',
-                ),
-              ),
-              if ((int.tryParse(controller.text.trim()) ?? 0) > 0) ...[
-                const SizedBox(height: 8),
-                CheckboxListTile(
-                  value: aceptaTerminos,
-                  onChanged: (v) => setState(() => aceptaTerminos = v ?? false),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                  activeColor: AppColors.limeGreen,
-                  title: const Text(
-                    'Entiendo que si el DJ acepta la propina, no hay devolución.',
-                    style: TextStyle(color: AppColors.lavender, fontSize: 13),
-                  ),
+        builder: (context, setState) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.limeGreen.withOpacity(0.18),
+                  blurRadius: 40,
+                  spreadRadius: 4,
                 ),
               ],
-              const SizedBox(height: 8),
-              NeonGradientButton(
-                label: 'Enviar solicitud',
-                onPressed: () {
-                  final monto = int.tryParse(controller.text.trim()) ?? 0;
-                  if (monto != 0 && (monto < 500 || monto > 20000)) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text(
-                            'El monto debe ser entre \$500 y \$20.000 CLP.'),
-                        backgroundColor: AppColors.danger,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  pista.trackName,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17),
+                ),
+                const SizedBox(height: 2),
+                Text(pista.artistName,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.muted)),
+                const SizedBox(height: 20),
+                // Segmented: Sin propina / Con propina.
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _segmento(
+                          label: 'Sin propina',
+                          seleccionado: !conPropina,
+                          onTap: () => setState(() => conPropina = false),
+                        ),
                       ),
-                    );
-                    return;
-                  }
-                  if (monto > 0 && !aceptaTerminos) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text(
-                            'Acepta los Términos y Condiciones para enviar una propina.'),
-                        backgroundColor: AppColors.danger,
+                      Expanded(
+                        child: _segmento(
+                          label: 'Con propina',
+                          seleccionado: conPropina,
+                          onTap: () => setState(() => conPropina = true),
+                        ),
                       ),
-                    );
-                    return;
-                  }
-                  Navigator.of(context).pop((monto, aceptaTerminos));
-                },
-              ),
-            ],
+                    ],
+                  ),
+                ),
+                if (conPropina) ...[
+                  const SizedBox(height: 20),
+                  // El monto flota grande y centrado, imposible de pasar
+                  // por alto — antes era un campo de texto chico al fondo
+                  // de la pantalla.
+                  Text(
+                    _formatearClp(monto),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: AppColors.limeGreen,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 40),
+                  ),
+                  const Text('CLP',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _montosPredefinidos.map((valor) {
+                      final activo = valor == monto;
+                      return GestureDetector(
+                        onTap: () => setState(() => monto = valor),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: activo
+                                ? AppColors.limeGreen
+                                : AppColors.background,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: activo
+                                  ? AppColors.limeGreen
+                                  : AppColors.border,
+                            ),
+                          ),
+                          child: Text(
+                            _formatearClp(valor),
+                            style: TextStyle(
+                              color: activo
+                                  ? AppColors.onLime
+                                  : AppColors.lavender,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Mínimo \$500, máximo \$20.000. No garantiza que suene, es solo un incentivo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.muted, fontSize: 11),
+                  ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    value: aceptaTerminos,
+                    onChanged: (v) =>
+                        setState(() => aceptaTerminos = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppColors.limeGreen,
+                    title: const Text(
+                      'Entiendo que si el DJ acepta la propina, no hay devolución.',
+                      style: TextStyle(color: AppColors.lavender, fontSize: 13),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                NeonGradientButton(
+                  label: conPropina ? 'Enviar con propina' : 'Enviar solicitud',
+                  onPressed: () {
+                    if (conPropina && !aceptaTerminos) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text(
+                              'Acepta los Términos y Condiciones para enviar una propina.'),
+                          backgroundColor: AppColors.danger,
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.of(context)
+                        .pop((conPropina ? monto : 0, aceptaTerminos));
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _segmento({
+    required String label,
+    required bool seleccionado,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: seleccionado ? AppColors.limeGreen : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: seleccionado ? AppColors.onLime : AppColors.muted,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
           ),
         ),
       ),
