@@ -1,21 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/event_model.dart';
 import '../models/itunes_track.dart';
 import '../models/pending_song_request.dart';
 import '../models/song_request_model.dart';
-import '../services/api_client.dart';
 import '../services/event_socket.dart';
 import '../services/pending_requests_store.dart';
 import '../services/request_service.dart';
 import '../services/song_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/budsound_text_field.dart';
 import '../widgets/fade_slide_in.dart';
 import '../widgets/neon_gradient_button.dart';
 import '../widgets/pressable_scale.dart';
 import 'mp_checkout_screen.dart';
 
-/// Buscar canción y pedirla (con propina opcional) dentro de un evento, y
+/// Buscar canción y pedirla (con propina obligatoria) dentro de un evento, y
 /// ver el estado de las propias solicitudes en vivo.
 class ParticipantEventScreen extends StatefulWidget {
   const ParticipantEventScreen({super.key, required this.evento});
@@ -40,6 +42,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
   List<PendingSongRequest> _pendientesLocales = [];
   bool _buscando = false;
   bool _conectado = true;
+  bool _mostrandoPopulares = true;
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -58,14 +62,48 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       );
     _cargarMisSolicitudes();
     _reintentarPendientes();
+    _cargarPopulares();
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _socket.desconectar();
     _busqueda.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Canciones populares que se muestran apenas se abre la pestaña, antes
+  /// de escribir nada — así nunca es una pantalla vacía.
+  Future<void> _cargarPopulares() async {
+    setState(() => _buscando = true);
+    try {
+      final resultados = await _songService.top();
+      if (!mounted) return;
+      setState(() {
+        _resultados = resultados;
+        _mostrandoPopulares = true;
+        _buscando = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _buscando = false);
+    }
+  }
+
+  /// Dispara la búsqueda ~400ms después de que la persona deja de escribir
+  /// (en vez de exigir tocar la lupa o Enter) — si borra todo, vuelve a
+  /// mostrar las canciones populares.
+  void _alEscribir(String termino) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (termino.trim().isEmpty) {
+        _cargarPopulares();
+      } else {
+        _buscar(termino);
+      }
+    });
   }
 
   Future<void> _buscar(String termino) async {
@@ -76,6 +114,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       if (!mounted) return;
       setState(() {
         _resultados = resultados;
+        _mostrandoPopulares = false;
         _buscando = false;
       });
     } catch (e) {
@@ -103,89 +142,34 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     if (eleccion == null) return;
     final (monto, terminosAceptados) = eleccion;
 
-    // Con propina, el pago se autoriza en el checkout de MercadoPago antes
-    // de que la solicitud exista — es esa pantalla la que llama a crear la
-    // solicitud una vez que la tarjeta quedó tokenizada (ver
-    // McpCheckoutScreen y CLAUDE.md, riesgo "Autorización de pago vs.
-    // captura"). Sin propina no hay nada que pagar, así que se crea directo
-    // y puede aprovechar la cola local si falla la conexión.
-    if (monto > 0) {
-      if (!mounted) return;
-      final pagada = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => McpCheckoutScreen(
-            eventId: widget.evento.id,
-            itunesTrackId: pista.trackId,
-            titulo: pista.trackName,
-            artista: pista.artistName,
-            artworkUrl: pista.artworkUrl,
-            montoClp: monto,
-            terminosAceptados: terminosAceptados,
-          ),
+    // La propina es obligatoria (ver _elegirMonto): el pago se autoriza en
+    // el checkout de MercadoPago antes de que la solicitud exista — es esa
+    // pantalla la que llama a crear la solicitud una vez que la tarjeta
+    // quedó tokenizada (ver McpCheckoutScreen y CLAUDE.md, riesgo
+    // "Autorización de pago vs. captura").
+    if (!mounted) return;
+    final pagada = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => McpCheckoutScreen(
+          eventId: widget.evento.id,
+          itunesTrackId: pista.trackId,
+          titulo: pista.trackName,
+          artista: pista.artistName,
+          artworkUrl: pista.artworkUrl,
+          montoClp: monto,
+          terminosAceptados: terminosAceptados,
         ),
-      );
-      if (pagada != true) return;
-      await _cargarMisSolicitudes();
-      if (!mounted) return;
-      _tabController.animateTo(1);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: const Text('Solicitud enviada al DJ'),
-            backgroundColor: AppColors.limeDark),
-      );
-      return;
-    }
-
-    try {
-      await _requestService.crear(
-        eventId: widget.evento.id,
-        itunesTrackId: pista.trackId,
-        titulo: pista.trackName,
-        artista: pista.artistName,
-        artworkUrl: pista.artworkUrl,
-        montoClp: monto,
-        terminosAceptados: terminosAceptados,
-      );
-      await _cargarMisSolicitudes();
-      if (!mounted) return;
-      _tabController.animateTo(1);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: const Text('Solicitud enviada al DJ'),
-            backgroundColor: AppColors.limeDark),
-      );
-    } on ApiException catch (e) {
-      // El backend respondió y la rechazó (validación, regla de negocio) —
-      // reintentar no va a cambiar el resultado, así que no se encola.
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: AppColors.danger),
-      );
-    } catch (_) {
-      // No hubo respuesta del backend (corte de conexión en el evento, ver
-      // CLAUDE.md riesgo "Congestión de red") — se guarda para no perder la
-      // solicitud y se reintenta sola apenas vuelva la señal.
-      await _pendingStore.agregar(PendingSongRequest(
-        localId: DateTime.now().microsecondsSinceEpoch.toString(),
-        eventId: widget.evento.id,
-        itunesTrackId: pista.trackId,
-        titulo: pista.trackName,
-        artista: pista.artistName,
-        artworkUrl: pista.artworkUrl,
-        montoClp: monto,
-        terminosAceptados: terminosAceptados,
-      ));
-      await _cargarPendientesLocales();
-      if (!mounted) return;
-      _tabController.animateTo(1);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-              'Sin conexión: se enviará sola apenas vuelva la señal'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-    }
+      ),
+    );
+    if (pagada != true) return;
+    await _cargarMisSolicitudes();
+    if (!mounted) return;
+    _tabController.animateTo(1);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: const Text('Solicitud enviada al DJ'),
+          backgroundColor: AppColors.limeDark),
+    );
   }
 
   Future<void> _cargarPendientesLocales() async {
@@ -238,13 +222,26 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     20000
   ];
 
+  /// Monto válido: entre $500 y $20.000, y múltiplo de 50 (termina en 0, y
+  /// la decena es 0 o 5 — ej. 600, 650, 700, 750). `null` si no cumple.
+  static int? _validarMontoCustom(String texto) {
+    final valor = int.tryParse(texto.trim());
+    if (valor == null) return null;
+    if (valor < 500 || valor > 20000) return null;
+    if (valor % 50 != 0) return null;
+    return valor;
+  }
+
   /// Diálogo flotante y centrado (no un bottom sheet, que quedaba muy
-  /// escondido abajo) con montos predefinidos entre $500 y $20.000 — nunca
-  /// hay que escribir un número ni se puede salir de ese rango por error.
+  /// escondido abajo) con montos predefinidos entre $500 y $20.000 — la
+  /// propina es obligatoria para pedir una canción, ya no hay alternativa
+  /// de enviar la solicitud gratis.
   Future<(int, bool)?> _elegirMonto(ItunesTrack pista) async {
-    var conPropina = false;
     var monto = _montosPredefinidos.first;
     var aceptaTerminos = false;
+    var mostrarOtro = false;
+    String? errorOtro;
+    final otroController = TextEditingController();
 
     return showDialog<(int, bool)>(
       context: context,
@@ -285,111 +282,111 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: AppColors.muted)),
                 const SizedBox(height: 20),
-                // Segmented: Sin propina / Con propina.
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _segmento(
-                          label: 'Sin propina',
-                          seleccionado: !conPropina,
-                          onTap: () => setState(() => conPropina = false),
-                        ),
-                      ),
-                      Expanded(
-                        child: _segmento(
-                          label: 'Con propina',
-                          seleccionado: conPropina,
-                          onTap: () => setState(() => conPropina = true),
-                        ),
-                      ),
-                    ],
-                  ),
+                // El monto flota grande y centrado, imposible de pasar por
+                // alto — antes era un campo de texto chico al fondo de la
+                // pantalla.
+                Text(
+                  _formatearClp(monto),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: AppColors.limeGreen,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 40),
                 ),
-                if (conPropina) ...[
-                  const SizedBox(height: 20),
-                  // El monto flota grande y centrado, imposible de pasar
-                  // por alto — antes era un campo de texto chico al fondo
-                  // de la pantalla.
-                  Text(
-                    _formatearClp(monto),
+                const Text('CLP',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: AppColors.limeGreen,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 40),
-                  ),
-                  const Text('CLP',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.muted, fontSize: 12)),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _montosPredefinidos.map((valor) {
-                      final activo = valor == monto;
-                      return GestureDetector(
-                        onTap: () => setState(() => monto = valor),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: activo
-                                ? AppColors.limeGreen
-                                : AppColors.background,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: activo
-                                  ? AppColors.limeGreen
-                                  : AppColors.border,
-                            ),
-                          ),
-                          child: Text(
-                            _formatearClp(valor),
-                            style: TextStyle(
-                              color: activo
-                                  ? AppColors.onLime
-                                  : AppColors.lavender,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
+                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                const SizedBox(height: 16),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ..._montosPredefinidos.map((valor) {
+                      final activo = !mostrarOtro && valor == monto;
+                      return _chipMonto(
+                        label: _formatearClp(valor),
+                        activo: activo,
+                        onTap: () => setState(() {
+                          monto = valor;
+                          mostrarOtro = false;
+                          errorOtro = null;
+                        }),
                       );
-                    }).toList(),
+                    }),
+                    _chipMonto(
+                      label: 'Otro monto',
+                      activo: mostrarOtro,
+                      onTap: () => setState(() => mostrarOtro = true),
+                    ),
+                  ],
+                ),
+                if (mostrarOtro) ...[
+                  const SizedBox(height: 12),
+                  BudsoundTextField(
+                    controller: otroController,
+                    label: 'Monto exacto en CLP',
+                    hint: 'Ej. 700',
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    onChanged: (texto) {
+                      final valido = _validarMontoCustom(texto);
+                      setState(() {
+                        if (valido != null) {
+                          monto = valido;
+                          errorOtro = null;
+                        } else {
+                          errorOtro = texto.trim().isEmpty
+                              ? null
+                              : 'Tiene que terminar en 0 o 50 (ej. 600, 650, 700), entre \$500 y \$20.000.';
+                        }
+                      });
+                    },
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
+                  if (errorOtro != null) ...[
+                    const SizedBox(height: 4),
+                    Text(errorOtro!,
+                        style:
+                            TextStyle(color: AppColors.danger, fontSize: 11)),
+                  ],
+                ],
+                const SizedBox(height: 4),
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
                     'Mínimo \$500, máximo \$20.000. No garantiza que suene, es solo un incentivo.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.muted, fontSize: 11),
                   ),
-                  const SizedBox(height: 12),
-                  CheckboxListTile(
-                    value: aceptaTerminos,
-                    onChanged: (v) =>
-                        setState(() => aceptaTerminos = v ?? false),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                    activeColor: AppColors.limeGreen,
-                    title: const Text(
-                      'Entiendo que si el DJ acepta la propina, no hay devolución.',
-                      style: TextStyle(color: AppColors.lavender, fontSize: 13),
-                    ),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: aceptaTerminos,
+                  onChanged: (v) => setState(() => aceptaTerminos = v ?? false),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: AppColors.limeGreen,
+                  title: const Text(
+                    'Entiendo que si el DJ acepta la propina, no hay devolución.',
+                    style: TextStyle(color: AppColors.lavender, fontSize: 13),
                   ),
-                ],
+                ),
                 const SizedBox(height: 12),
                 NeonGradientButton(
-                  label: conPropina ? 'Enviar con propina' : 'Enviar solicitud',
+                  label: 'Enviar con propina',
                   onPressed: () {
-                    if (conPropina && !aceptaTerminos) {
+                    if (mostrarOtro &&
+                        _validarMontoCustom(otroController.text) == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text(
+                              'Ingresa un monto válido antes de enviar.'),
+                          backgroundColor: AppColors.danger,
+                        ),
+                      );
+                      return;
+                    }
+                    if (!aceptaTerminos) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: const Text(
@@ -399,8 +396,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                       );
                       return;
                     }
-                    Navigator.of(context)
-                        .pop((conPropina ? monto : 0, aceptaTerminos));
+                    Navigator.of(context).pop((monto, aceptaTerminos));
                   },
                 ),
               ],
@@ -411,25 +407,27 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     );
   }
 
-  Widget _segmento({
+  Widget _chipMonto({
     required String label,
-    required bool seleccionado,
+    required bool activo,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: seleccionado ? AppColors.limeGreen : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          color: activo ? AppColors.limeGreen : AppColors.background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: activo ? AppColors.limeGreen : AppColors.border,
+          ),
         ),
         child: Text(
           label,
-          textAlign: TextAlign.center,
           style: TextStyle(
-            color: seleccionado ? AppColors.onLime : AppColors.muted,
+            color: activo ? AppColors.onLime : AppColors.lavender,
             fontWeight: FontWeight.w700,
             fontSize: 13,
           ),
@@ -496,6 +494,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
             controller: _busqueda,
             style: const TextStyle(color: AppColors.white),
             textInputAction: TextInputAction.search,
+            onChanged: _alEscribir,
             onSubmitted: _buscar,
             decoration: InputDecoration(
               hintText: 'Buscar canción o artista',
@@ -515,17 +514,31 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           Expanded(
             child: _resultados.isEmpty
                 ? const Center(
-                    child: Text('Busca una canción para pedirla.',
+                    child: Text('No se encontraron canciones.',
                         style: TextStyle(color: AppColors.muted)),
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    itemCount: _resultados.length,
+                    itemCount: _resultados.length + 1,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
-                      final pista = _resultados[index];
+                      if (index == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            _mostrandoPopulares
+                                ? 'Populares ahora'
+                                : 'Resultados',
+                            style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        );
+                      }
+                      final pista = _resultados[index - 1];
                       return FadeSlideIn(
-                        delay: Duration(milliseconds: 35 * index),
+                        delay: Duration(milliseconds: 35 * (index - 1)),
                         child: PressableScale(
                           onTap: () => _pedirCancion(pista),
                           child: Material(

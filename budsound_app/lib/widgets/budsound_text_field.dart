@@ -18,6 +18,8 @@ class BudsoundTextField extends StatelessWidget {
     this.readOnly = false,
     this.onTap,
     this.autofillHints,
+    this.onChanged,
+    this.autofocus = false,
   });
 
   final TextEditingController controller;
@@ -32,6 +34,8 @@ class BudsoundTextField extends StatelessWidget {
   final bool readOnly;
   final VoidCallback? onTap;
   final Iterable<String>? autofillHints;
+  final void Function(String)? onChanged;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +48,8 @@ class BudsoundTextField extends StatelessWidget {
       readOnly: readOnly,
       onTap: onTap,
       autofillHints: autofillHints,
+      onChanged: onChanged,
+      autofocus: autofocus,
       style: const TextStyle(color: AppColors.white),
       cursorColor: AppColors.limeGreen,
       decoration: InputDecoration(
