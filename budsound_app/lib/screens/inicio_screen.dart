@@ -118,8 +118,44 @@ class _InicioScreenState extends State<InicioScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
+            // Insignia de rol bien visible arriba — antes el panel de DJ y
+            // el de Participante se veían idénticos salvo por el texto
+            // chico del saludo, fácil de confundir a simple vista.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _esDj
+                    ? AppColors.limeGreen.withOpacity(0.15)
+                    : AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _esDj ? AppColors.limeGreen : AppColors.border,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _esDj ? Icons.headphones_rounded : Icons.person_rounded,
+                    size: 14,
+                    color: _esDj ? AppColors.limeGreen : AppColors.muted,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _esDj ? 'PANEL DE DJ' : 'PARTICIPANTE',
+                    style: TextStyle(
+                      color: _esDj ? AppColors.limeGreen : AppColors.muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
-              'Hola, $saludo',
+              _esDj ? '¡Hola, $saludo! 🎧' : 'Hola, $saludo',
               style: const TextStyle(
                   color: AppColors.white,
                   fontSize: 20,
