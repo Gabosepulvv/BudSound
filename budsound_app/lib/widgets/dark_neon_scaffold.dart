@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// Fondo oscuro con degradado azul neón tenue en la base, más un glow
-/// ambiental que respira lentamente — para que las pantallas de acceso no
-/// se sientan estáticas incluso sin que la persona interactúe todavía.
+/// Fondo azul marino casi negro con degradado verde lima tenue en la base,
+/// más un glow ambiental que respira lentamente — para que las pantallas de
+/// acceso no se sientan estáticas incluso sin que la persona interactúe
+/// todavía.
 class DarkNeonScaffold extends StatefulWidget {
   const DarkNeonScaffold({
     super.key,
@@ -46,8 +47,8 @@ class _DarkNeonScaffoldState extends State<DarkNeonScaffold>
                 end: Alignment.bottomCenter,
                 colors: [
                   AppColors.background,
-                  Color(0xFF07102A),
-                  AppColors.cobalt,
+                  Color(0xFF0A1A16),
+                  AppColors.limeDark,
                 ],
                 stops: [0.0, 0.62, 1.0],
               ),
@@ -67,7 +68,7 @@ class _DarkNeonScaffoldState extends State<DarkNeonScaffold>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.neonBlue.withOpacity(
+                          color: AppColors.limeGreen.withOpacity(
                               0.10 + 0.08 * _respiracion.value),
                           blurRadius: 120,
                           spreadRadius: 40,

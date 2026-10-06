@@ -37,8 +37,8 @@ class AppTheme {
 
   static ThemeData get dark {
     final colorScheme = const ColorScheme.dark(
-      primary: AppColors.neonBlue,
-      secondary: AppColors.cobalt,
+      primary: AppColors.limeGreen,
+      secondary: AppColors.limeDark,
       surface: AppColors.surface,
       error: AppColors.danger,
       onPrimary: AppColors.white,
@@ -70,7 +70,7 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.neonBlue.withOpacity(0.28),
+        indicatorColor: AppColors.limeGreen.withOpacity(0.28),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -87,7 +87,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: AppColors.neonBlue, width: 1.6),
+          borderSide: const BorderSide(color: AppColors.limeGreen, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),

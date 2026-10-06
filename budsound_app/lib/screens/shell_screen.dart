@@ -46,7 +46,7 @@ class _ShellScreenState extends State<ShellScreen> {
         selectedIndex: _indice,
         onDestinationSelected: _cambiarPestana,
         backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.neonBlue.withOpacity(0.25),
+        indicatorColor: AppColors.limeGreen.withOpacity(0.25),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),

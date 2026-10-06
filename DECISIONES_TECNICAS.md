@@ -293,6 +293,34 @@ datos propio, no al revés — y de resolver con una sola ruta (dos llamadas)
 en vez de inventar un endpoint o una tabla temporal para un "estado a
 medio registrar".
 
+## 15. Cambio de paleta a azul marino + verde lima: un solo archivo central y un color de texto nuevo para el contraste
+
+**Problema:** se pidió cambiar la identidad visual de azul neón a "azul
+oscuro casi negro con verde lima". Como todas las pantallas ya consumían
+los colores a través de una sola clase (`AppColors`, en
+`lib/theme/app_colors.dart`) en vez de tener valores hexadecimales sueltos
+repartidos por el código, el cambio de marca se redujo a renombrar dos
+constantes (`neonBlue` → `limeGreen`, `cobalt` → `limeDark`) y ajustar sus
+valores — ninguna pantalla tuvo que tocarse por su lógica, solo por el
+nombre del color.
+
+**El detalle que si requirió pensar:** el botón principal
+(`NeonGradientButton`) y el selector de rol (`RoleSegmentedControl`)
+pintan su texto en blanco fijo sobre el color de acento. Eso funcionaba
+con el azul porque era un azul medio-oscuro (buen contraste con blanco),
+pero un verde lima vibrante es un color claro — texto blanco encima
+prácticamente desaparece. Se agregó `AppColors.onLime` (un verde casi
+negro) para esos dos casos puntuales en vez de oscurecer todo el verde lima
+general y perder el efecto "neón" en los acentos pequeños (bordes,
+íconos, glow) donde sí se ve bien a plena intensidad.
+
+**Por qué importa para la defensa:** mostrar que centralizar la paleta en
+un solo archivo (en vez de `Color(0xFF...)` repetidos por todas las
+pantallas) convirtió un cambio de identidad visual completo en una edición
+de ~30 líneas en un solo lugar — y que un mismo color puede necesitar dos
+tratamientos de contraste distintos (texto encima vs. acento sobre fondo
+oscuro) según dónde se use.
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más

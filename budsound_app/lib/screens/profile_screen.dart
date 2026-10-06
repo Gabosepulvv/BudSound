@@ -75,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(resultado.mensaje ?? resultado.error ?? ''),
-        backgroundColor: resultado.exito ? AppColors.cobalt : AppColors.danger,
+        backgroundColor: resultado.exito ? AppColors.limeDark : AppColors.danger,
       ),
     );
   }
@@ -91,14 +91,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined,
-                  color: AppColors.neonBlue),
+                  color: AppColors.limeGreen),
               title: const Text('Tomar foto',
                   style: TextStyle(color: AppColors.white)),
               onTap: () => Navigator.of(context).pop(_OpcionFoto.camara),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined,
-                  color: AppColors.neonBlue),
+                  color: AppColors.limeGreen),
               title: const Text('Elegir de la galería',
                   style: TextStyle(color: AppColors.white)),
               onTap: () => Navigator.of(context).pop(_OpcionFoto.galeria),
@@ -235,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 12),
                 Chip(
                   backgroundColor: AppColors.background,
-                  side: const BorderSide(color: AppColors.neonBlue),
+                  side: const BorderSide(color: AppColors.limeGreen),
                   label: Text(
                     esDj ? 'Perfil DJ' : 'Perfil público',
                     style: const TextStyle(color: AppColors.lavender),
@@ -319,7 +319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           else
             const GlowLogo(size: 72),
           if (_subiendoFoto)
-            const CircularProgressIndicator(color: AppColors.neonBlue)
+            const CircularProgressIndicator(color: AppColors.limeGreen)
           else
             Positioned(
               bottom: -4,
@@ -327,7 +327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: const BoxDecoration(
-                  color: AppColors.neonBlue,
+                  color: AppColors.limeGreen,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.edit_rounded,

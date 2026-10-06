@@ -40,7 +40,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result.mensaje ?? result.error ?? ''),
-        backgroundColor: result.exito ? AppColors.cobalt : AppColors.danger,
+        backgroundColor: result.exito ? AppColors.limeDark : AppColors.danger,
       ),
     );
   }

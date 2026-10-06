@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// CTA principal con degradado azul neón → cobalto. Se achica levemente y
-/// atenúa su glow al presionar, además del ripple de Material.
+/// CTA principal con degradado verde lima → lima oscuro. Se achica levemente
+/// y atenúa su glow al presionar, además del ripple de Material. El texto
+/// usa [AppColors.onLime] (no blanco) porque el verde lima es demasiado
+/// claro para que el blanco tenga buen contraste encima.
 class NeonGradientButton extends StatefulWidget {
   const NeonGradientButton({
     super.key,
@@ -50,16 +52,16 @@ class _NeonGradientButtonState extends State<NeonGradientButton> {
               borderRadius: BorderRadius.circular(18),
               gradient: LinearGradient(
                 colors: enabled
-                    ? const [AppColors.neonBlue, AppColors.cobalt]
+                    ? const [AppColors.limeGreen, AppColors.limeDark]
                     : [
-                        AppColors.neonBlue.withOpacity(0.35),
-                        AppColors.cobalt.withOpacity(0.35),
+                        AppColors.limeGreen.withOpacity(0.35),
+                        AppColors.limeDark.withOpacity(0.35),
                       ],
               ),
               boxShadow: enabled
                   ? [
                       BoxShadow(
-                        color: AppColors.neonBlue
+                        color: AppColors.limeGreen
                             .withOpacity(_presionado ? 0.25 : 0.45),
                         blurRadius: _presionado ? 10 : 18,
                         offset: const Offset(0, 8),
@@ -79,13 +81,13 @@ class _NeonGradientButtonState extends State<NeonGradientButton> {
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.4,
-                            color: AppColors.white,
+                            color: AppColors.onLime,
                           ),
                         )
                       : Text(
                           widget.label,
                           style: const TextStyle(
-                            color: AppColors.white,
+                            color: AppColors.onLime,
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
                             letterSpacing: 0.3,

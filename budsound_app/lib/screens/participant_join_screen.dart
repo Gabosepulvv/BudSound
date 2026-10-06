@@ -65,7 +65,7 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.qr_code_scanner_rounded,
-                size: 72, color: AppColors.neonBlue),
+                size: 72, color: AppColors.limeGreen),
             const SizedBox(height: 16),
             const Text(
               'Únete a un evento',

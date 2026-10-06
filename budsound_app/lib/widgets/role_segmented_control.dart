@@ -34,7 +34,7 @@ class RoleSegmentedControl extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 gradient: selected
                     ? const LinearGradient(
-                        colors: [AppColors.neonBlue, AppColors.cobalt],
+                        colors: [AppColors.limeGreen, AppColors.limeDark],
                       )
                     : null,
               ),
@@ -49,7 +49,7 @@ class RoleSegmentedControl extends StatelessWidget {
                       rol.label,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: selected ? AppColors.white : AppColors.muted,
+                        color: selected ? AppColors.onLime : AppColors.muted,
                         fontWeight:
                             selected ? FontWeight.w700 : FontWeight.w500,
                       ),

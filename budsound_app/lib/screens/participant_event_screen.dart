@@ -131,7 +131,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Solicitud enviada al DJ'),
-            backgroundColor: AppColors.cobalt),
+            backgroundColor: AppColors.limeDark),
       );
       return;
     }
@@ -152,7 +152,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Solicitud enviada al DJ'),
-            backgroundColor: AppColors.cobalt),
+            backgroundColor: AppColors.limeDark),
       );
     } on ApiException catch (e) {
       // El backend respondió y la rechazó (validación, regla de negocio) —
@@ -277,7 +277,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                   onChanged: (v) => setState(() => aceptaTerminos = v ?? false),
                   controlAffinity: ListTileControlAffinity.leading,
                   contentPadding: EdgeInsets.zero,
-                  activeColor: AppColors.neonBlue,
+                  activeColor: AppColors.limeGreen,
                   title: const Text(
                     'Entiendo que si el DJ acepta la propina, no hay devolución.',
                     style: TextStyle(color: AppColors.lavender, fontSize: 13),
@@ -391,7 +391,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
         if (_buscando)
           const Expanded(
               child: Center(
-                  child: CircularProgressIndicator(color: AppColors.neonBlue)))
+                  child: CircularProgressIndicator(color: AppColors.limeGreen)))
         else
           Expanded(
             child: _resultados.isEmpty
@@ -440,7 +440,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                               ),
                               trailing: const Icon(
                                   Icons.add_circle_outline_rounded,
-                                  color: AppColors.neonBlue),
+                                  color: AppColors.limeGreen),
                             ),
                           ),
                         ),
@@ -540,7 +540,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
 
   Widget _tarjetaSolicitud(SongRequestModel solicitud) {
     final color = solicitud.aceptada
-        ? AppColors.neonBlue
+        ? AppColors.limeGreen
         : solicitud.rechazada
             ? AppColors.danger
             : solicitud.cancelada
@@ -594,7 +594,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           if (solicitud.aceptada && solicitud.tienePropina)
             const Text('Pagado',
                 style:
-                    TextStyle(color: AppColors.neonBlue, fontWeight: FontWeight.w700)),
+                    TextStyle(color: AppColors.limeGreen, fontWeight: FontWeight.w700)),
         ],
       ),
     );

@@ -119,7 +119,7 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(color: AppColors.neonBlue),
+                  child: CircularProgressIndicator(color: AppColors.limeGreen),
                 );
               }
               if (snapshot.hasError) {
@@ -176,7 +176,7 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: evento.activo ? AppColors.neonBlue : AppColors.border,
+              color: evento.activo ? AppColors.limeGreen : AppColors.border,
             ),
           ),
           child: Row(
@@ -192,7 +192,7 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                   evento.activo
                       ? Icons.qr_code_2_rounded
                       : Icons.lock_outline_rounded,
-                  color: AppColors.neonBlue,
+                  color: AppColors.limeGreen,
                 ),
               ),
               const SizedBox(width: 12),

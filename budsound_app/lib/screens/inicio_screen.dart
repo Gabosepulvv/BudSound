@@ -131,7 +131,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 padding: EdgeInsets.symmetric(vertical: 40),
                 child: Center(
                     child:
-                        CircularProgressIndicator(color: AppColors.neonBlue)),
+                        CircularProgressIndicator(color: AppColors.limeGreen)),
               )
             else if (_evento != null)
               FadeSlideIn(child: _tarjetaEventoActivo(_evento!))
@@ -149,7 +149,7 @@ class _InicioScreenState extends State<InicioScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.neonBlue),
+        border: Border.all(color: AppColors.limeGreen),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

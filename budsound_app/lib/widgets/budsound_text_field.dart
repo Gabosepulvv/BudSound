@@ -45,7 +45,7 @@ class BudsoundTextField extends StatelessWidget {
       onTap: onTap,
       autofillHints: autofillHints,
       style: const TextStyle(color: AppColors.white),
-      cursorColor: AppColors.neonBlue,
+      cursorColor: AppColors.limeGreen,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

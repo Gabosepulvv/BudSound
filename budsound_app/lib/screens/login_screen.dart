@@ -172,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(texto ?? (ok ? 'Listo' : 'Error')),
-        backgroundColor: ok ? AppColors.cobalt : AppColors.danger,
+        backgroundColor: ok ? AppColors.limeDark : AppColors.danger,
       ),
     );
   }
@@ -296,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: const Text(
                           'Crear cuenta',
                           style: TextStyle(
-                            color: AppColors.neonBlue,
+                            color: AppColors.limeGreen,
                             fontWeight: FontWeight.w700,
                           ),
                         ),

@@ -56,7 +56,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: AppColors.neonBlue,
+              primary: AppColors.limeGreen,
               surface: AppColors.surface,
             ),
           ),
@@ -102,7 +102,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result.mensaje ?? result.error ?? ''),
-        backgroundColor: result.exito ? AppColors.cobalt : AppColors.danger,
+        backgroundColor: result.exito ? AppColors.limeDark : AppColors.danger,
       ),
     );
 

@@ -27,12 +27,12 @@ class GlowLogo extends StatelessWidget {
             borderRadius: BorderRadius.circular(size * 0.28),
             boxShadow: [
               BoxShadow(
-                color: AppColors.neonBlue.withOpacity(0.55),
+                color: AppColors.limeGreen.withOpacity(0.55),
                 blurRadius: 36,
                 spreadRadius: 4,
               ),
               BoxShadow(
-                color: AppColors.cobalt.withOpacity(0.35),
+                color: AppColors.limeDark.withOpacity(0.35),
                 blurRadius: 64,
                 spreadRadius: 8,
               ),

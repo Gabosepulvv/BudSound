@@ -143,7 +143,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         const SnackBar(
           content:
               Text('Evento cerrado. Abajo queda el resumen de recaudación.'),
-          backgroundColor: AppColors.cobalt,
+          backgroundColor: AppColors.limeDark,
         ),
       );
     } catch (e) {
@@ -201,7 +201,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(
                     child:
-                        CircularProgressIndicator(color: AppColors.neonBlue)),
+                        CircularProgressIndicator(color: AppColors.limeGreen)),
               )
             else if (pendientes.isEmpty)
               const Padding(
@@ -312,7 +312,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.neonBlue),
+        border: Border.all(color: AppColors.limeGreen),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -352,7 +352,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
           Text(
             valor,
             style: TextStyle(
-              color: destacado ? AppColors.neonBlue : AppColors.white,
+              color: destacado ? AppColors.limeGreen : AppColors.white,
               fontWeight: FontWeight.w700,
               fontSize: destacado ? 16 : 13,
             ),
@@ -409,7 +409,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.neonBlue),
+                          strokeWidth: 2, color: AppColors.limeGreen),
                     )
                   : Row(
                       children: [
@@ -421,7 +421,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                         IconButton(
                           onPressed: () => _resolver(solicitud, aceptar: true),
                           icon: const Icon(Icons.check_circle_rounded,
-                              color: AppColors.neonBlue),
+                              color: AppColors.limeGreen),
                         ),
                       ],
                     )
@@ -431,7 +431,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.neonBlue),
+                          strokeWidth: 2, color: AppColors.limeGreen),
                     )
                   : TextButton.icon(
                       onPressed: () => _marcarReproducida(solicitud),
@@ -457,7 +457,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
   }
 
   Color _colorEstado(SongRequestModel solicitud) {
-    if (solicitud.aceptada) return AppColors.neonBlue;
+    if (solicitud.aceptada) return AppColors.limeGreen;
     if (solicitud.rechazada) return AppColors.danger;
     if (solicitud.cancelada) return AppColors.muted;
     return AppColors.border;

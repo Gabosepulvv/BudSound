@@ -106,7 +106,7 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
           WebViewWidget(controller: _controller),
           if (_cargando)
             const Center(
-              child: CircularProgressIndicator(color: AppColors.neonBlue),
+              child: CircularProgressIndicator(color: AppColors.limeGreen),
             ),
         ],
       ),
