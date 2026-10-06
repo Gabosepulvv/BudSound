@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const requestModel = require('../models/request.model');
 const eventModel = require('../models/event.model');
 const transactionModel = require('../models/transaction.model');
@@ -8,6 +9,27 @@ const asyncHandler = require('../utils/asyncHandler');
 
 const MONTO_MIN = 500;
 const MONTO_MAX = 20000;
+const CHECKOUT_TOKEN_MINUTOS_VALIDEZ = 15;
+
+// Token de alcance acotado para el WebView de pago (ver
+// `checkout.controller.js` y `auth.middleware.js` ->
+// `requireAuthOrCheckoutScope`): antes esa página recibía el JWT de sesión
+// completo (7 días, acceso total a la cuenta) dentro de una página que
+// también carga JS de un tercero (SDK de MercadoPago). Este token solo
+// sirve para crear la solicitud de ESTE evento, vence en 15 minutos, y
+// cualquier otra ruta de la API lo rechaza de entrada (ver `requireAuth`).
+const emitirTokenCheckout = asyncHandler(async (req, res) => {
+  const event = await eventModel.buscarPorId(req.params.eventId);
+  if (!event) throw new ApiError(404, 'Evento no encontrado.');
+  if (event.status !== 'ACTIVO') throw new ApiError(409, 'Este evento ya fue cerrado.');
+
+  const checkoutToken = jwt.sign(
+    { sub: req.user.sub, role: 'PARTICIPANTE', scope: 'checkout', eventId: event.id },
+    env.jwtSecret,
+    { expiresIn: `${CHECKOUT_TOKEN_MINUTOS_VALIDEZ}m` },
+  );
+  res.json({ checkoutToken });
+});
 
 const crear = asyncHandler(async (req, res) => {
   const {
@@ -188,4 +210,5 @@ module.exports = {
   aceptar,
   rechazar,
   marcarReproducida,
+  emitirTokenCheckout,
 };

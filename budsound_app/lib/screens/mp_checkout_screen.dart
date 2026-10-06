@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../core/api_config.dart';
-import '../services/session_service.dart';
+import '../services/request_service.dart';
 import '../theme/app_colors.dart';
 
 /// WebView con el formulario de tarjeta de MercadoPago (Card Payment Brick,
@@ -39,12 +39,33 @@ class McpCheckoutScreen extends StatefulWidget {
 }
 
 class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
-  late final WebViewController _controller;
+  final _requestService = RequestService();
+  WebViewController? _controller;
   bool _cargando = true;
+  String? _errorInicial;
 
   @override
   void initState() {
     super.initState();
+    _iniciar();
+  }
+
+  // El WebView nunca ve el JWT de sesión completo: pide primero un token de
+  // checkout acotado (15 min, solo sirve para crear ESTA solicitud) — ver
+  // RequestService.obtenerTokenCheckout y CLAUDE.md, revisión de seguridad.
+  Future<void> _iniciar() async {
+    final String checkoutToken;
+    try {
+      checkoutToken = await _requestService.obtenerTokenCheckout(widget.eventId);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorInicial = 'No se pudo iniciar el pago. Intenta de nuevo.';
+      });
+      return;
+    }
+    if (!mounted) return;
 
     final body = utf8.encode(jsonEncode({
       'eventId': widget.eventId,
@@ -54,29 +75,51 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
       'artworkUrl': widget.artworkUrl,
       'montoClp': widget.montoClp,
       'terminosAceptados': widget.terminosAceptados,
-      'jwt': SessionService.instance.jwt ?? '',
+      'jwt': checkoutToken,
     }));
 
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(AppColors.background)
-      ..addJavaScriptChannel(
-        'BudSoundCheckout',
-        onMessageReceived: _onMensajeDePagina,
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (_) {
-            if (mounted) setState(() => _cargando = false);
-          },
-        ),
-      )
-      ..loadRequest(
-        Uri.parse(ApiConfig.checkoutUrl),
-        method: LoadRequestMethod.post,
-        headers: const {'Content-Type': 'application/json'},
-        body: body,
-      );
+    final checkoutUri = Uri.parse(ApiConfig.checkoutUrl);
+    // Lista blanca de a dónde puede navegar este WebView: nuestro propio
+    // backend (la página de checkout) y el SDK/dominios de MercadoPago que
+    // ella misma carga. Cualquier otra navegación (una redirección rara,
+    // un intento de phishing) se cancela antes de cargar — antes el
+    // WebView seguía cualquier navegación sin restricción, con JavaScript
+    // habilitado y el canal BudSoundCheckout siempre expuesto.
+    bool dominioPermitido(String host) {
+      return host == checkoutUri.host ||
+          host == 'sdk.mercadopago.com' ||
+          host.endsWith('.mercadopago.com') ||
+          host.endsWith('.mercadolibre.com');
+    }
+
+    setState(() {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(AppColors.background)
+        ..addJavaScriptChannel(
+          'BudSoundCheckout',
+          onMessageReceived: _onMensajeDePagina,
+        )
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageFinished: (_) {
+              if (mounted) setState(() => _cargando = false);
+            },
+            onNavigationRequest: (request) {
+              final host = Uri.tryParse(request.url)?.host ?? '';
+              return dominioPermitido(host)
+                  ? NavigationDecision.navigate
+                  : NavigationDecision.prevent;
+            },
+          ),
+        )
+        ..loadRequest(
+          checkoutUri,
+          method: LoadRequestMethod.post,
+          headers: const {'Content-Type': 'application/json'},
+          body: body,
+        );
+    });
   }
 
   void _onMensajeDePagina(JavaScriptMessage message) {
@@ -103,7 +146,12 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
       appBar: AppBar(title: const Text('Pagar propina')),
       body: Stack(
         children: [
-          WebViewWidget(controller: _controller),
+          if (_controller != null) WebViewWidget(controller: _controller!),
+          if (_errorInicial != null)
+            Center(
+              child: Text(_errorInicial!,
+                  style: const TextStyle(color: AppColors.danger)),
+            ),
           if (_cargando)
             const Center(
               child: CircularProgressIndicator(color: AppColors.limeGreen),

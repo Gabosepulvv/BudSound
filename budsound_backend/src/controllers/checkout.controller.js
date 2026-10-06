@@ -10,10 +10,15 @@ function escapeHtml(value) {
   }[c]));
 }
 
-// Página de checkout que carga la app (Flutter) en un WebView, nunca un
-// navegador público — por eso es seguro pasarle el JWT del Participante
-// acá adentro: lo necesita para llamar de vuelta a la API real
-// (`/api/events/:eventId/requests`) una vez que tokenizó la tarjeta.
+// Página de checkout que carga la app (Flutter) en un WebView para llamar
+// de vuelta a la API real (`/api/events/:eventId/requests`) una vez que
+// tokenizó la tarjeta. El campo `jwt` que llega acá NO es el JWT de sesión
+// completo: es un token de checkout de 15 minutos, con permiso solo para
+// esa llamada puntual (ver `request.controller.js` -> `emitirTokenCheckout`
+// y `auth.middleware.js` -> `requireAuthOrCheckoutScope`) — así, aunque
+// esta página también carga JS de un tercero (el SDK de MercadoPago), lo
+// más que queda expuesto ahí es un token de corta duración y un solo uso,
+// no las credenciales completas de la cuenta.
 //
 // Usa el "Card Payment Brick" de MercadoPago.js: la tarjeta se tokeniza en
 // el navegador con la Public Key, el número de tarjeta nunca llega al

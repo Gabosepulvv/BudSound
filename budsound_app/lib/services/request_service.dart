@@ -35,6 +35,14 @@ class RequestService {
     return SongRequestModel.fromJson(data['request'] as Map<String, dynamic>);
   }
 
+  /// Token de corta duración (15 min, válido solo para este evento) que usa
+  /// el WebView de pago en vez del JWT de sesión completo — ver
+  /// `McpCheckoutScreen` y CLAUDE.md, revisión de seguridad.
+  Future<String> obtenerTokenCheckout(String eventId) async {
+    final data = await _api.post('/events/$eventId/checkout-token');
+    return data['checkoutToken'] as String;
+  }
+
   Future<List<SongRequestModel>> listarPorEvento(
     String eventId, {
     String? status,

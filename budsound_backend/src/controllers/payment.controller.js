@@ -59,7 +59,14 @@ const webhook = asyncHandler(async (req, res) => {
   const tipo = req.query.type || req.body?.type || req.body?.topic;
   const paymentId = req.query['data.id'] || req.body?.data?.id || req.body?.resource;
 
-  if (tipo !== 'payment' || !paymentId || !mercadopagoService.credencialesListas()) {
+  // El webhook no tiene auth (MercadoPago lo llama directo, sin sesión) y
+  // nunca se confía en el body (ver comentario más abajo) — pero el id SÍ
+  // se usa tal cual para armar la URL que se llama en la API de
+  // MercadoPago (`/v1/payments/${paymentId}`, ver mercadopago.service.js).
+  // Sin este chequeo, cualquiera podía mandar un "id" con `/` o `..` y
+  // hacer que esa llamada golpeara una ruta distinta de la API de
+  // MercadoPago usando nuestro access token.
+  if (tipo !== 'payment' || !/^\d+$/.test(String(paymentId || '')) || !mercadopagoService.credencialesListas()) {
     return res.sendStatus(200);
   }
 
