@@ -285,7 +285,7 @@ Spotify/YouTube — hay que poder explicarla en la defensa:
 Auditoría manual de auth, pagos, sockets y SQL. Dos hallazgos de
 prioridad alta ya corregidos; el resto queda anotado para una próxima
 pasada (ver detalle y justificación de cada uno en DECISIONES_TECNICAS.md,
-entradas 16 y 17):
+entradas 16-19):
 
 - **Corregido — sockets sin autenticación obligatoria:** un socket podía
   conectarse sin JWT y unirse a la sala de cualquier evento (`event:join`)
@@ -299,14 +299,28 @@ entradas 16 y 17):
   rechaza hasta que se confirme — ver `email.service.js` y "Login con
   Google" abajo (mismo patrón: sin credenciales SMTP, esta capa queda
   apagada y la app funciona como antes).
-- **Pendientes (prioridad media/baja, no bloquean el MVP):** el JWT de
-  sesión completo viaja dentro del WebView de pago de MercadoPago en vez
-  de un token acotado solo a esa operación; ese WebView no restringe a qué
-  dominios puede navegar; el webhook de MercadoPago no valida que el
-  `paymentId` recibido sea numérico antes de usarlo en la URL de su API;
-  el JWT se guarda sin cifrar en el celular (`SharedPreferences` en vez de
-  `flutter_secure_storage`); los errores 500 devuelven el mensaje interno
-  crudo al cliente.
+- **Corregido — JWT completo expuesto en el WebView de pago:** el
+  Participante ahora pide un token de checkout de 15 minutos, válido solo
+  para crear la solicitud de ESE evento (`POST
+  /events/:eventId/checkout-token`) — el resto de la API lo rechaza de
+  entrada aunque la firma sea válida. Ver `requireAuthOrCheckoutScope` en
+  `auth.middleware.js` y `emitirTokenCheckout` en `request.controller.js`.
+- **Corregido — WebView de pago sin restricción de navegación:**
+  `mp_checkout_screen.dart` ahora tiene una lista blanca de dominios
+  (`onNavigationRequest`) — solo deja navegar al propio backend y a
+  dominios de MercadoPago; cualquier otra navegación se cancela.
+- **Corregido — `paymentId` del webhook sin validar:** `payment.controller.js`
+  exige que sea numérico antes de usarlo para armar la URL que se llama en
+  la API de MercadoPago.
+- **Corregido — JWT sin cifrar en el celular:** el token de sesión pasó de
+  `SharedPreferences` (texto plano) a `flutter_secure_storage` (Keystore en
+  Android, Keychain en iOS/macOS) — ver `session_service.dart`. El resto de
+  los datos de sesión (nombre, email, rol) siguen en SharedPreferences, no
+  son tan sensibles.
+- **Corregido — errores 500 con mensaje interno crudo:** `error.middleware.js`
+  ahora responde un mensaje genérico en los 500 (y lo loguea completo solo
+  en el servidor); los errores controlados (400/401/403/404/409) siguen
+  mostrando su mensaje normal, pensado para mostrarse.
 
 ## Verificación de correo al registrarse — setup pendiente
 

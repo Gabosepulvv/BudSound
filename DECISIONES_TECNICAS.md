@@ -384,6 +384,78 @@ de "buscar y después actualizar" (que tendría una ventana de carrera) — es
 el mismo nivel de cuidado que ya se usa para las contraseñas (bcrypt) y
 para los pagos (autorizar/capturar), aplicado a un tercer flujo sensible.
 
+## 18. Token de checkout acotado: el WebView de pago deja de ver el JWT completo
+
+**Problema:** `McpCheckoutScreen` abre un WebView que carga una página
+servida por el propio backend (`POST /pay/checkout`) para tokenizar la
+tarjeta con el SDK de MercadoPago. Esa página necesita un JWT para poder
+llamar de vuelta a `POST /events/:eventId/requests` una vez tokenizada la
+tarjeta — y hasta ahora se le pasaba el JWT de sesión completo (7 días,
+acceso total a la cuenta), dentro de una página que **también** carga
+JavaScript de un tercero (el SDK de MercadoPago). Si ese SDK, un CDN
+comprometido, o cualquier bug futuro en esa página llegaran a exponer ese
+token, quien lo consiguiera podía actuar como esa persona en toda la app,
+no solo pagar esa propina.
+
+**Qué se hizo:** un nuevo endpoint, `POST
+/events/:eventId/checkout-token` (con el JWT normal), devuelve un token
+distinto — mismo formato JWT, pero con `scope: 'checkout'`, `eventId` y 15
+minutos de vencimiento. `requireAuth` (el middleware que protege el resto
+de la API) ahora rechaza cualquier token que traiga `scope`, aunque la
+firma sea válida — así, aunque ese token se filtrara desde el WebView, no
+sirve para nada fuera de crear la solicitud de ese evento puntual. Solo la
+ruta de creación de solicitudes usa un middleware nuevo
+(`requireAuthOrCheckoutScope`) que acepta ambos: el JWT normal (como antes,
+para las solicitudes sin propina que la app crea directo) o un token de
+checkout que coincida con el `eventId` de la URL.
+
+De paso, el WebView ganó una lista blanca de navegación
+(`onNavigationRequest`): solo puede navegar al propio backend y a dominios
+de `mercadopago.com`/`mercadolibre.com`. Antes seguía cualquier
+redirección sin restricción, con JavaScript habilitado y el canal
+`BudSoundCheckout` siempre expuesto.
+
+También se endureció el webhook de MercadoPago: ahora exige que el
+`paymentId` recibido sea numérico antes de usarlo para armar la URL que se
+llama en la API de MercadoPago (`/v1/payments/${paymentId}`) — sin eso, un
+id con formato raro podía hacer que esa llamada golpeara una ruta distinta
+de esa API usando nuestro access token.
+
+**Por qué importa para la defensa:** principio de menor privilegio
+aplicado a un canal que combina dos cosas riesgosas a la vez (un token de
+sesión y JavaScript de un tercero) — en vez de confiar en que "nada va a
+salir mal", se diseñó para que, si algo sale mal ahí, el daño quede acotado
+a una operación de 15 minutos sobre un evento específico, no a la cuenta
+completa.
+
+## 19. JWT cifrado en el celular (flutter_secure_storage)
+
+**Problema:** el JWT de sesión vivía en `SharedPreferences`, que en
+Android es un archivo XML en texto plano dentro del almacenamiento privado
+de la app — legible con acceso físico al celular o por ADB (`adb shell run-as
+com.example.budsound cat ...`), sin necesitar la contraseña de la cuenta.
+
+**Qué se hizo:** el JWT se movió a `flutter_secure_storage` (Keystore de
+Android, Keychain en iOS/macOS) — el resto de los datos de sesión (email,
+nombre, rol, el perfil) se quedó en SharedPreferences porque no son tan
+sensibles y son más simples de leer de forma sincrónica. Se agregó una
+migración de una sola vez (`_leerJwtConMigracion`): si alguien ya tenía
+sesión iniciada con la versión vieja de la app, su JWT se mueve solo la
+primera vez que abre esta versión, sin tener que volver a loguearse.
+
+**Nota de este equipo en particular:** este paquete trae de vuelta
+`path_provider_foundation`/`objective_c` como dependencia transitiva — la
+misma cadena que causó el bug de "Building native assets... failed" en
+Windows cuando la ruta del usuario tiene espacios (ver "Problemas
+conocidos del entorno"). Se probó un build de Android completo después de
+agregarlo y no se repitió (el proyecto y el SDK de Flutter ya viven en
+`C:\dev`, sin espacios) — pero si alguien del equipo corre esto desde una
+ruta con espacios, es el primer sospechoso si vuelve a aparecer ese error.
+
+**Por qué importa para la defensa:** es la diferencia entre "el token está
+guardado" y "el token está guardado de forma que alguien con el celular en
+la mano, pero sin la contraseña, no puede simplemente leerlo".
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más
