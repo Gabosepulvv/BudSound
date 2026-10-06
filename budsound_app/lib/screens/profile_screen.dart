@@ -29,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _subiendoFoto = false;
   bool _guardandoDatos = false;
+  bool _editando = false;
 
   @override
   void initState() {
@@ -36,6 +37,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final usuario = SessionService.instance.usuario;
     _nombreController = TextEditingController(text: usuario?.nombre ?? '');
     _apellidoController = TextEditingController(text: usuario?.apellido ?? '');
+  }
+
+  void _empezarEdicion() {
+    final usuario = SessionService.instance.usuario;
+    _nombreController.text = usuario?.nombre ?? '';
+    _apellidoController.text = usuario?.apellido ?? '';
+    setState(() => _editando = true);
+  }
+
+  void _cancelarEdicion() {
+    final usuario = SessionService.instance.usuario;
+    _nombreController.text = usuario?.nombre ?? '';
+    _apellidoController.text = usuario?.apellido ?? '';
+    setState(() => _editando = false);
   }
 
   @override
@@ -71,11 +86,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final resultado =
         await _auth.actualizarPerfil(nombre: nombre, apellido: apellido);
     if (!mounted) return;
-    setState(() => _guardandoDatos = false);
+    setState(() {
+      _guardandoDatos = false;
+      if (resultado.exito) _editando = false;
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(resultado.mensaje ?? resultado.error ?? ''),
-        backgroundColor: resultado.exito ? AppColors.limeDark : AppColors.danger,
+        backgroundColor:
+            resultado.exito ? AppColors.limeDark : AppColors.danger,
       ),
     );
   }
@@ -194,108 +213,220 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        titleSpacing: 16,
-        title: const Row(
-          children: [
-            GlowLogo(size: 34),
-            SizedBox(width: 10),
-            Text('Perfil'),
-          ],
-        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: EdgeInsets.zero,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              children: [
-                _avatar(usuario?.avatarDataUrl),
-                const SizedBox(height: 16),
-                Text(
-                  sesion.nombreVisible ?? 'Usuario Budsound',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  sesion.email ?? '',
-                  style: const TextStyle(color: AppColors.muted),
-                ),
-                const SizedBox(height: 12),
-                Chip(
-                  backgroundColor: AppColors.background,
-                  side: const BorderSide(color: AppColors.limeGreen),
-                  label: Text(
-                    esDj ? 'Perfil DJ' : 'Perfil público',
-                    style: const TextStyle(color: AppColors.lavender),
-                  ),
-                ),
-              ],
+          _banner(usuario?.avatarDataUrl),
+          const SizedBox(height: 52), // espacio para el avatar que sobresale
+          Text(
+            sesion.nombreVisible ?? 'Usuario Budsound',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Editar datos',
-                  style: TextStyle(
-                      color: AppColors.white, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 12),
-                BudsoundTextField(
-                    controller: _nombreController, label: 'Nombre'),
-                const SizedBox(height: 10),
-                BudsoundTextField(
-                    controller: _apellidoController, label: 'Apellido'),
-                const SizedBox(height: 14),
-                NeonGradientButton(
-                  label: 'Guardar cambios',
-                  loading: _guardandoDatos,
-                  onPressed: _guardarDatos,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (esDj && usuario?.nombreArtistico != null)
-            _fila('Nombre artístico', usuario!.nombreArtistico!),
-          _fila(
-            'Sesión',
-            sesion.hasSession ? 'JWT restaurado en este dispositivo' : '—',
+          const SizedBox(height: 6),
+          Text(
+            sesion.email ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.muted),
           ),
           const SizedBox(height: 12),
-          Text(
-            esDj
-                ? 'Desde En vivo puedes crear un evento, mostrar el QR y gestionar la cola de solicitudes.'
-                : 'Escanea el QR de un evento desde En vivo para pedir canciones al DJ.',
-            style: const TextStyle(color: AppColors.muted, fontSize: 13),
+          Center(
+            child: Chip(
+              backgroundColor: AppColors.background,
+              side: const BorderSide(color: AppColors.limeGreen),
+              label: Text(
+                esDj ? 'Perfil DJ' : 'Perfil público',
+                style: const TextStyle(color: AppColors.lavender),
+              ),
+            ),
           ),
-          const SizedBox(height: 28),
-          NeonGradientButton(
-            label: 'Cerrar sesión',
-            onPressed: () => _cerrarSesion(context),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+            child: Column(
+              children: [
+                _tarjetaDatos(esDj, usuario?.nombreArtistico),
+                const SizedBox(height: 16),
+                _fila(
+                  'Sesión',
+                  sesion.hasSession
+                      ? 'JWT restaurado en este dispositivo'
+                      : '—',
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  esDj
+                      ? 'Desde En vivo puedes crear un evento, mostrar el QR y gestionar la cola de solicitudes.'
+                      : 'Escanea el QR de un evento desde En vivo para pedir canciones al DJ.',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                ),
+                const SizedBox(height: 28),
+                NeonGradientButton(
+                  label: 'Cerrar sesión',
+                  onPressed: () => _cerrarSesion(context),
+                ),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  /// Portada estilo "banner de canal" con el avatar sobresaliendo desde
+  /// abajo — reemplaza la tarjeta plana que había antes.
+  Widget _banner(String? avatarDataUrl) {
+    return SizedBox(
+      height: 190,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            height: 150,
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.surface, AppColors.background],
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: -30,
+                  right: -20,
+                  child: Container(
+                    width: 180,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.limeGreen.withOpacity(0.28),
+                          blurRadius: 90,
+                          spreadRadius: 30,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Center(child: _avatar(avatarDataUrl)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Datos de perfil: muestra texto de solo lectura hasta que la persona
+  /// toque "Editar" — el botón "Guardar cambios" solo aparece mientras
+  /// está editando, no todo el tiempo.
+  Widget _tarjetaDatos(bool esDj, String? nombreArtistico) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Tus datos',
+                  style: TextStyle(
+                      color: AppColors.white, fontWeight: FontWeight.w700),
+                ),
+              ),
+              if (!_editando)
+                TextButton.icon(
+                  onPressed: _empezarEdicion,
+                  icon: const Icon(Icons.edit_outlined,
+                      size: 18, color: AppColors.limeGreen),
+                  label: const Text('Editar',
+                      style: TextStyle(color: AppColors.limeGreen)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_editando) ...[
+            BudsoundTextField(controller: _nombreController, label: 'Nombre'),
+            const SizedBox(height: 10),
+            BudsoundTextField(
+                controller: _apellidoController, label: 'Apellido'),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _guardandoDatos ? null : _cancelarEdicion,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Cancelar',
+                        style: TextStyle(color: AppColors.lavender)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: NeonGradientButton(
+                    label: 'Guardar cambios',
+                    loading: _guardandoDatos,
+                    onPressed: _guardarDatos,
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            _filaDato('Nombre', _nombreController.text),
+            const SizedBox(height: 10),
+            _filaDato('Apellido', _apellidoController.text),
+            if (esDj && nombreArtistico != null) ...[
+              const SizedBox(height: 10),
+              _filaDato('Nombre artístico', nombreArtistico),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _filaDato(String etiqueta, String valor) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(etiqueta,
+              style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+        ),
+        Expanded(
+          child: Text(
+            valor.isEmpty ? '—' : valor,
+            style: const TextStyle(
+                color: AppColors.white, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
     );
   }
 
@@ -311,30 +442,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return GestureDetector(
       onTap: _subiendoFoto ? null : _elegirFoto,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (imagen != null)
-            CircleAvatar(radius: 44, backgroundImage: imagen)
-          else
-            const GlowLogo(size: 72),
-          if (_subiendoFoto)
-            const CircularProgressIndicator(color: AppColors.limeGreen)
-          else
-            Positioned(
-              bottom: -4,
-              right: -4,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: AppColors.limeGreen,
-                  shape: BoxShape.circle,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: const BoxDecoration(
+          color: AppColors.background,
+          shape: BoxShape.circle,
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (imagen != null)
+              CircleAvatar(radius: 44, backgroundImage: imagen)
+            else
+              const GlowLogo(size: 72),
+            if (_subiendoFoto)
+              const CircularProgressIndicator(color: AppColors.limeGreen)
+            else
+              Positioned(
+                bottom: -4,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: AppColors.limeGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.edit_rounded,
+                      size: 14, color: AppColors.white),
                 ),
-                child: const Icon(Icons.edit_rounded,
-                    size: 14, color: AppColors.white),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
