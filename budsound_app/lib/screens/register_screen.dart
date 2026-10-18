@@ -4,6 +4,7 @@ import '../core/app_routes.dart';
 import '../models/user_model.dart';
 import '../models/user_role.dart';
 import '../services/auth_service.dart';
+import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/budsound_text_field.dart';
 import '../widgets/dark_neon_scaffold.dart';
@@ -25,6 +26,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _apellidoController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordConfirmController = TextEditingController();
   final _djController = TextEditingController();
   final _fechaController = TextEditingController();
   final _auth = AuthService();
@@ -32,6 +34,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   DateTime? _fechaNacimiento;
   UserRole _rol = UserRole.publico;
   bool _ocultarPassword = true;
+  bool _ocultarPasswordConfirm = true;
   bool _cargando = false;
 
   @override
@@ -40,6 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _apellidoController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordConfirmController.dispose();
     _djController.dispose();
     _fechaController.dispose();
     super.dispose();
@@ -97,6 +101,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
     if (!mounted) return;
     setState(() => _cargando = false);
+
+    if (result.exito || result.requiereVerificacion) {
+      await SessionService.instance.marcarTutorialPendiente();
+    }
+    if (!mounted) return;
 
     if (result.requiereVerificacion) {
       await _mostrarDialogoVerificacion(result.emailPendiente!);
@@ -251,7 +260,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Crea una contraseña';
-                      if (v.length < 6) return 'Mínimo 6 caracteres';
+                      if (v.length < 8) return 'Mínimo 8 caracteres';
+                      return null;
+                    },
+                    // Si la persona vuelve a este campo después de llenar
+                    // "Confirmar contraseña", el aviso de "no coinciden" de
+                    // ese campo queda desactualizado hasta que se vuelve a
+                    // validar — revalidar el formulario entero acá evita
+                    // que quede un error viejo pegado en pantalla.
+                    onChanged: (_) => _formKey.currentState?.validate(),
+                  ),
+                  const SizedBox(height: 12),
+                  BudsoundTextField(
+                    controller: _passwordConfirmController,
+                    label: 'Confirmar contraseña',
+                    obscureText: _ocultarPasswordConfirm,
+                    prefixIcon: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppColors.muted,
+                    ),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setState(() =>
+                            _ocultarPasswordConfirm = !_ocultarPasswordConfirm);
+                      },
+                      icon: Icon(
+                        _ocultarPasswordConfirm
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: AppColors.lavender,
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Repite la contraseña';
+                      }
+                      if (v != _passwordController.text) {
+                        return 'Las contraseñas no coinciden';
+                      }
                       return null;
                     },
                   ),

@@ -22,6 +22,13 @@ class ApiConfig {
   static const String _hostDesarrollo = 'localhost';
   static const int _puerto = 3000;
 
+  /// IP de la red local del equipo (ej. `192.168.1.50`) para probar en un
+  /// celular/tablet físico conectado a la misma WiFi — `10.0.2.2` de abajo
+  /// SOLO funciona dentro del emulador de Android, un dispositivo real no
+  /// lo resuelve. Se pasa por `--dart-define=API_HOST=...` al compilar;
+  /// sin este define, el emulador sigue funcionando igual que siempre.
+  static const String _hostLan = String.fromEnvironment('API_HOST');
+
   static String get baseUrl => '$_esquema://$_host$_sufijoPuerto/api';
 
   static String get socketUrl => '$_esquema://$_host$_sufijoPuerto';
@@ -39,6 +46,7 @@ class ApiConfig {
 
   static String get _host {
     if (_usarProduccion) return _hostProduccion;
+    if (_hostLan.isNotEmpty) return _hostLan;
     if (kIsWeb) return _hostDesarrollo;
     if (Platform.isAndroid) return '10.0.2.2';
     return _hostDesarrollo;

@@ -251,15 +251,29 @@ class AuthService {
     }
   }
 
-  /// El backend aún no expone recuperación de contraseña por correo.
+  /// Pide el link de recuperación — el backend responde el mismo mensaje
+  /// exista o no la cuenta (no hay forma de distinguir éxito real de "no
+  /// encontrado" desde acá, a propósito: ver `solicitarRecuperacion` en
+  /// auth.controller.js). El cambio de contraseña en sí pasa fuera de la
+  /// app, en la página que abre el link del correo — mismo patrón que la
+  /// verificación de cuenta (requiere SMTP configurado en el backend, ver
+  /// CLAUDE.md).
   Future<AuthResult> solicitarRecuperacion(String email) async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
     if (!_emailValido(email)) {
       return const AuthResult.fail('El correo electrónico no es válido.');
     }
-    return const AuthResult.fail(
-      'La recuperación por correo todavía no está disponible.',
-    );
+    try {
+      final data = await _api.post(
+        '/auth/forgot-password',
+        body: {'email': email.trim()},
+        autenticado: false,
+      );
+      return AuthResult.ok(mensaje: data['mensaje'] as String?);
+    } catch (_) {
+      return const AuthResult.fail(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
   }
 
   Future<void> _guardarSesionDesdeRespuesta(
@@ -282,6 +296,8 @@ class AuthService {
               : DateTime(2000, 1, 1)),
       rol: rol,
       nombreArtistico: userJson['nombreArtistico'] as String?,
+      nombreArtisticoCambiadoAt: DateTime.tryParse(
+          userJson['nombreArtisticoCambiadoAt'] as String? ?? ''),
       avatarDataUrl: userJson['avatarDataUrl'] as String?,
     );
 
@@ -298,18 +314,23 @@ class AuthService {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim());
   }
 
-  /// Edita nombre/apellido y/o la foto de perfil. [quitarFoto] en true
-  /// borra la foto actual (manda `avatarDataUrl: null` al backend); si es
-  /// false y [avatarDataUrl] viene null, la foto actual no se toca.
+  /// Edita nombre/apellido, nombre artístico y/o la foto de perfil.
+  /// [quitarFoto] en true borra la foto actual (manda `avatarDataUrl: null`
+  /// al backend); si es false y [avatarDataUrl] viene null, la foto actual
+  /// no se toca. [nombreArtistico] lo valida el backend (solo DJ, sin
+  /// evento activo, máximo 1 vez cada 30 días) — ver
+  /// auth.controller.js, `actualizarPerfil`.
   Future<AuthResult> actualizarPerfil({
     String? nombre,
     String? apellido,
+    String? nombreArtistico,
     String? avatarDataUrl,
     bool quitarFoto = false,
   }) async {
     final body = <String, dynamic>{};
     if (nombre != null) body['nombre'] = nombre.trim();
     if (apellido != null) body['apellido'] = apellido.trim();
+    if (nombreArtistico != null) body['nombreArtistico'] = nombreArtistico.trim();
     if (quitarFoto) {
       body['avatarDataUrl'] = null;
     } else if (avatarDataUrl != null) {
@@ -331,11 +352,34 @@ class AuthService {
         fechaNacimiento: actual?.fechaNacimiento ?? DateTime(2000, 1, 1),
         rol: UserRoleX.desdeBackend(userJson['role'] as String?),
         nombreArtistico: userJson['nombreArtistico'] as String?,
+        nombreArtisticoCambiadoAt: DateTime.tryParse(
+                userJson['nombreArtisticoCambiadoAt'] as String? ?? '') ??
+            actual?.nombreArtisticoCambiadoAt,
         avatarDataUrl: userJson['avatarDataUrl'] as String?,
       );
 
       await _session.actualizarUsuario(actualizado);
       return const AuthResult.ok(mensaje: 'Perfil actualizado');
+    } on ApiException catch (e) {
+      return AuthResult.fail(e.message);
+    } catch (_) {
+      return const AuthResult.fail(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
+  }
+
+  /// Borra la cuenta del lado del backend (irreversible — ver
+  /// `auth.controller.js`, `eliminarCuenta`). No cierra la sesión local acá:
+  /// eso es decisión de quien llama, después de confirmar que el borrado
+  /// funcionó.
+  Future<AuthResult> eliminarCuenta({String? password}) async {
+    try {
+      await _api.delete(
+        '/auth/me',
+        body: password != null ? {'password': password} : null,
+      );
+      return const AuthResult.ok(mensaje: 'Cuenta eliminada');
     } on ApiException catch (e) {
       return AuthResult.fail(e.message);
     } catch (_) {

@@ -25,7 +25,6 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
   final _codigoController = TextEditingController();
   bool _cargando = false;
   bool _cargandoEventoActual = true;
-  bool _mostrarUnirse = false;
   EventModel? _eventoActual;
 
   @override
@@ -107,25 +106,21 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
   Widget build(BuildContext context) {
     if (_cargandoEventoActual) {
       return Center(
-        child: CircularProgressIndicator(color: AppColors.limeGreen),
+        child: CircularProgressIndicator(color: AppColors.success),
       );
     }
 
-    if (_eventoActual != null && !_mostrarUnirse) {
+    // Mientras el participante siga en un evento activo, no puede unirse a
+    // otro — ni escaneando ni escribiendo un código a mano (se quitó el
+    // "¿No es tu evento? Unirse a otro" que había antes). En cuanto el
+    // evento actual cierra, `_cargarEventoActual` lo nota solo (limpia
+    // `ultimoEventoCode`) y esta pantalla vuelve a la vista normal de
+    // unirse sin que haga falta nada más acá.
+    if (_eventoActual != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _tarjetaEventoActual(_eventoActual!),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => setState(() => _mostrarUnirse = true),
-                child: const Text('¿No es tu evento? Unirse a otro'),
-              ),
-            ],
-          ),
+          child: _tarjetaEventoActual(_eventoActual!),
         ),
       );
     }
@@ -137,7 +132,7 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.qr_code_scanner_rounded,
-                size: 72, color: AppColors.limeGreen),
+                size: 72, color: AppColors.success),
             const SizedBox(height: 16),
             const Text(
               'Únete a un evento',
@@ -156,6 +151,8 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
             NeonGradientButton(
               label: 'Escanear código QR',
               loading: _cargando,
+              color: AppColors.success,
+              colorTexto: AppColors.onSuccess,
               onPressed: _escanear,
             ),
             const SizedBox(height: 18),
@@ -171,15 +168,9 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
             const SizedBox(height: 12),
             TextButton(
               onPressed: () => _unirsePorCodigo(_codigoController.text),
+              style: TextButton.styleFrom(foregroundColor: AppColors.success),
               child: const Text('Unirse con el código'),
             ),
-            if (_eventoActual != null) ...[
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => setState(() => _mostrarUnirse = false),
-                child: const Text('Volver a mi evento actual'),
-              ),
-            ],
           ],
         ),
       ),
@@ -196,7 +187,6 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.limeGreen),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,13 +194,13 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.limeGreen,
+              color: AppColors.success,
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Text(
               'ESTÁS AQUÍ',
               style: TextStyle(
-                  color: AppColors.onLime,
+                  color: AppColors.onSuccess,
                   fontSize: 10,
                   fontWeight: FontWeight.w800),
             ),
@@ -228,9 +218,33 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
             'Código ${evento.code}',
             style: const TextStyle(color: AppColors.muted, fontSize: 13),
           ),
+          if (evento.generos.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: evento.generos
+                  .map((g) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          g,
+                          style: TextStyle(
+                              color: AppColors.success, fontSize: 11),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ],
           const SizedBox(height: 16),
           NeonGradientButton(
             label: 'Pedir una canción',
+            color: AppColors.success,
+            colorTexto: AppColors.onSuccess,
             onPressed: _abrirEventoActual,
           ),
         ],

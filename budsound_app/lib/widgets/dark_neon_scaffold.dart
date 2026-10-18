@@ -1,11 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// Fondo azul marino casi negro con degradado verde lima tenue en la base,
-/// más un glow ambiental que respira lentamente — para que las pantallas de
-/// acceso no se sientan estáticas incluso sin que la persona interactúe
-/// todavía.
+/// Fondo casi negro con una sola mancha de glow violeta en la esquina
+/// superior, que flota en un recorrido lento y amplio (no solo respira de
+/// tamaño en el mismo lugar) — un acento puntual (como una luna
+/// moviéndose despacio), no un degradado que cubre toda la pantalla.
 class DarkNeonScaffold extends StatefulWidget {
   const DarkNeonScaffold({
     super.key,
@@ -22,14 +24,16 @@ class DarkNeonScaffold extends StatefulWidget {
 
 class _DarkNeonScaffoldState extends State<DarkNeonScaffold>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _respiracion = AnimationController(
+  // Un solo recorrido continuo (no reverse) de 22s — lo bastante lento para
+  // sentirse como deriva, no como una animación que se nota "latiendo".
+  late final AnimationController _deriva = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 4),
-  )..repeat(reverse: true);
+    duration: const Duration(seconds: 22),
+  )..repeat();
 
   @override
   void dispose() {
-    _respiracion.dispose();
+    _deriva.dispose();
     super.dispose();
   }
 
@@ -40,43 +44,40 @@ class _DarkNeonScaffoldState extends State<DarkNeonScaffold>
       appBar: widget.appBar,
       body: Stack(
         children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.background,
-                  Color(0xFF0A1A16),
-                  AppColors.limeDark,
-                ],
-                stops: [0.0, 0.62, 1.0],
-              ),
-            ),
+          const ColoredBox(
+            color: AppColors.background,
             child: SizedBox.expand(),
           ),
           Positioned.fill(
             child: IgnorePointer(
               child: AnimatedBuilder(
-                animation: _respiracion,
-                builder: (context, _) => Align(
-                  alignment: const Alignment(-0.6, -0.9),
-                  child: Container(
-                    width: 260,
-                    height: 260,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.limeGreen
-                              .withOpacity(0.10 + 0.08 * _respiracion.value),
-                          blurRadius: 120,
-                          spreadRadius: 40,
+                animation: _deriva,
+                builder: (context, _) {
+                  final t = _deriva.value * 2 * math.pi;
+                  // Recorrido elíptico chico alrededor de la esquina
+                  // superior derecha — nunca se aleja tanto como para
+                  // dejar de leerse como "esquina", solo deriva dentro de
+                  // ella.
+                  final dx = 1.0 + 0.18 * math.cos(t);
+                  final dy = -0.95 + 0.14 * math.sin(t * 0.8);
+                  return Align(
+                    alignment: Alignment(dx, dy),
+                    child: Container(
+                      width: 420,
+                      height: 420,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            AppColors.glow.withValues(
+                                alpha: 0.30 + 0.06 * math.sin(t * 1.3)),
+                            AppColors.glow.withValues(alpha: 0.0),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ),

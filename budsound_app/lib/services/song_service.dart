@@ -11,18 +11,26 @@ class SongService {
 
   final ApiClient _api;
 
-  Future<List<ItunesTrack>> buscar(String termino) async {
+  /// [eventId] acota los resultados a los géneros que el DJ declaró para
+  /// ese evento (ver `GENEROS_VALIDOS` en event.controller.js) — "mejor
+  /// esfuerzo", el backend decide cómo filtrar (ver itunes.service.js).
+  Future<List<ItunesTrack>> buscar(String termino, {String? eventId}) async {
     final limpio = termino.trim();
     if (limpio.isEmpty) return [];
 
-    final data = await _api.get('/songs/search', query: {'q': limpio});
+    final data = await _api.get('/songs/search', query: {
+      'q': limpio,
+      if (eventId != null) 'eventId': eventId,
+    });
     return _mapear(data);
   }
 
   /// Canciones populares (top chart) para mostrar algo apenas se abre la
   /// búsqueda, en vez de una pantalla vacía hasta que la persona escriba.
-  Future<List<ItunesTrack>> top() async {
-    final data = await _api.get('/songs/top');
+  Future<List<ItunesTrack>> top({String? eventId}) async {
+    final data = await _api.get('/songs/top', query: {
+      if (eventId != null) 'eventId': eventId,
+    });
     return _mapear(data);
   }
 

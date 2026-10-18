@@ -2,21 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// CTA principal con degradado verde lima → lima oscuro. Se achica levemente
-/// y atenúa su glow al presionar, además del ripple de Material. El texto
-/// usa [AppColors.onLime] (no blanco) porque el verde lima es demasiado
-/// claro para que el blanco tenga buen contraste encima.
+/// CTA principal — píldora sólida plana en el acento de la app, sin
+/// degradado ni glow (antes tenía las dos cosas). Se achica levemente al
+/// presionar, además del ripple de Material.
+///
+/// [color]/[colorTexto] son opcionales porque casi todas las pantallas (las
+/// del DJ) usan el acento violeta de siempre sin tener que pasar nada —
+/// las pantallas del Participante pasan el verde de `AppColors.success`
+/// para su propio acento (ver DECISIONES_TECNICAS.md, rediseño de UI).
 class NeonGradientButton extends StatefulWidget {
   const NeonGradientButton({
     super.key,
     required this.label,
     required this.onPressed,
     this.loading = false,
+    this.color,
+    this.colorTexto,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
+  final Color? color;
+  final Color? colorTexto;
 
   @override
   State<NeonGradientButton> createState() => _NeonGradientButtonState();
@@ -34,6 +42,8 @@ class _NeonGradientButtonState extends State<NeonGradientButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null && !widget.loading;
+    final color = widget.color ?? AppColors.limeGreen;
+    final colorTexto = widget.colorTexto ?? AppColors.onLime;
 
     return GestureDetector(
       onTapDown: (_) => _setPresionado(true),
@@ -49,45 +59,32 @@ class _NeonGradientButtonState extends State<NeonGradientButton> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: LinearGradient(
-                colors: enabled
-                    ? [AppColors.limeGreen, AppColors.limeDark]
-                    : [
-                        AppColors.limeGreen.withOpacity(0.35),
-                        AppColors.limeDark.withOpacity(0.35),
-                      ],
-              ),
-              boxShadow: enabled
-                  ? [
-                      BoxShadow(
-                        color: AppColors.limeGreen
-                            .withOpacity(_presionado ? 0.25 : 0.45),
-                        blurRadius: _presionado ? 10 : 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ]
-                  : const [],
+              borderRadius: BorderRadius.circular(27),
+              color: enabled
+                  ? (_presionado
+                      ? Color.lerp(color, Colors.black, 0.25)
+                      : color)
+                  : color.withValues(alpha: 0.35),
             ),
             child: Material(
               type: MaterialType.transparency,
               child: InkWell(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(27),
                 onTap: enabled ? widget.onPressed : null,
                 child: Center(
                   child: widget.loading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.4,
-                            color: AppColors.onLime,
+                            color: colorTexto,
                           ),
                         )
                       : Text(
                           widget.label,
-                          style: const TextStyle(
-                            color: AppColors.onLime,
+                          style: TextStyle(
+                            color: colorTexto,
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
                             letterSpacing: 0.3,

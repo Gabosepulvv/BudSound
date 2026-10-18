@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
 
@@ -32,9 +33,37 @@ class _FadeThroughTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-/// Tema Material 3 oscuro de Budsound.
+/// Tema Material 3 de Budsound — oscuro, único (sin modo claro).
+///
+/// Tipografía de dos voces, no una sola fuente de sistema repetida en todo
+/// tamaño (lo que hacía que la app se sintiera "plantilla"): [fontDisplay]
+/// (Unbounded, geométrica y con carácter — pensada para carteles de
+/// festival/flyer, no para párrafos) en nombres de evento, títulos y
+/// números grandes; el resto del texto usa Inter, que es más neutra y se
+/// lee mejor en párrafos largos.
 class AppTheme {
   AppTheme._();
+
+  /// Fuente de títulos/branding/números destacados — úsala explícitamente
+  /// con `AppTheme.fontDisplay(...)` en vez de `TextStyle` directo en
+  /// cualquier texto que sea un nombre de evento, un título de pantalla, el
+  /// logo "budsound", o una cifra grande (temporizador, recaudación). El
+  /// resto del texto (cuerpo, hints, botones) se queda con Inter vía
+  /// `textTheme` — no hace falta tocarlo widget por widget.
+  static TextStyle fontDisplay({
+    required Color color,
+    double fontSize = 16,
+    FontWeight fontWeight = FontWeight.w700,
+    double? letterSpacing,
+    double? height,
+  }) =>
+      GoogleFonts.unbounded(
+        color: color,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        letterSpacing: letterSpacing,
+        height: height,
+      );
 
   static ThemeData get dark {
     final colorScheme = ColorScheme.dark(
@@ -42,10 +71,10 @@ class AppTheme {
       secondary: AppColors.limeDark,
       surface: AppColors.surface,
       error: AppColors.danger,
-      onPrimary: AppColors.white,
-      onSecondary: AppColors.white,
+      onPrimary: AppColors.onLime,
+      onSecondary: AppColors.onLime,
       onSurface: AppColors.white,
-      onError: AppColors.white,
+      onError: AppColors.onLime,
     );
 
     return ThemeData(
@@ -53,7 +82,17 @@ class AppTheme {
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
-      fontFamily: 'Roboto',
+      textTheme:
+          GoogleFonts.interTextTheme(ThemeData(brightness: Brightness.dark).textTheme)
+              .copyWith(
+        headlineMedium: fontDisplay(
+          color: AppColors.white,
+          fontSize: 24,
+          letterSpacing: 0.2,
+        ),
+        bodyLarge: GoogleFonts.inter(color: AppColors.lavender),
+        bodyMedium: GoogleFonts.inter(color: AppColors.muted),
+      ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: _FadeThroughTransitionsBuilder(),
@@ -71,7 +110,7 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.limeGreen.withOpacity(0.28),
+        indicatorColor: AppColors.limeGreen.withValues(alpha: 0.28),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -98,15 +137,6 @@ class AppTheme {
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide(color: AppColors.danger, width: 1.6),
         ),
-      ),
-      textTheme: const TextTheme(
-        headlineMedium: TextStyle(
-          color: AppColors.white,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
-        ),
-        bodyLarge: TextStyle(color: AppColors.lavender),
-        bodyMedium: TextStyle(color: AppColors.muted),
       ),
     );
   }

@@ -3,15 +3,33 @@ import 'api_client.dart';
 /// Estado de la conexión del DJ con su propia cuenta de MercadoPago (OAuth
 /// marketplace) — ver CLAUDE.md, "¿A quién le llega la plata primero?".
 class MpConexionEstado {
-  const MpConexionEstado({required this.conectado, this.collectorId});
+  const MpConexionEstado({
+    required this.conectado,
+    this.collectorId,
+    this.nickname,
+    this.email,
+  });
 
   final bool conectado;
   final int? collectorId;
+  // Nickname/correo de la cuenta conectada — se muestran en Perfil para
+  // que el DJ pueda verificar que es la cuenta correcta, en vez de solo
+  // ver un ID numérico sin significado.
+  final String? nickname;
+  final String? email;
 
   factory MpConexionEstado.fromJson(Map<String, dynamic> json) {
+    // `collectorId` llega como String desde el backend — Postgres
+    // serializa las columnas `bigint` así (ver DECISIONES_TECNICAS.md,
+    // el mismo motivo por el que `resumenGeneralPorDj` usa strings).
+    final collectorIdRaw = json['collectorId'];
     return MpConexionEstado(
       conectado: json['conectado'] as bool? ?? false,
-      collectorId: json['collectorId'] as int?,
+      collectorId: collectorIdRaw is String
+          ? int.tryParse(collectorIdRaw)
+          : collectorIdRaw as int?,
+      nickname: json['nickname'] as String?,
+      email: json['email'] as String?,
     );
   }
 }

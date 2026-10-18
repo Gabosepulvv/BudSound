@@ -15,6 +15,13 @@ class RequestService {
   /// [terminosAceptados] es obligatorio cuando [montoClp] > 0 — el backend
   /// rechaza la propina si no viene en true (ver CLAUDE.md, riesgo "El
   /// participante pide la devolución del dinero").
+  ///
+  /// [cardToken]/[paymentMethodId]/[installments] vienen del Card Payment
+  /// Brick de MercadoPago (tokenizado en el WebView de
+  /// `McpCheckoutScreen`); [tokenCheckout], cuando viene, autentica con el
+  /// token acotado de 15 minutos en vez del JWT de sesión completo — ver
+  /// `McpCheckoutScreen._onMensajeDePagina` y CLAUDE.md, revisión de
+  /// seguridad.
   Future<SongRequestModel> crear({
     required String eventId,
     required int itunesTrackId,
@@ -23,15 +30,26 @@ class RequestService {
     required String artworkUrl,
     required int montoClp,
     bool terminosAceptados = false,
+    String? cardToken,
+    String? paymentMethodId,
+    int? installments,
+    String? tokenCheckout,
   }) async {
-    final data = await _api.post('/events/$eventId/requests', body: {
-      'itunesTrackId': itunesTrackId,
-      'titulo': titulo,
-      'artista': artista,
-      'artworkUrl': artworkUrl,
-      'montoClp': montoClp,
-      'terminosAceptados': terminosAceptados,
-    });
+    final data = await _api.post(
+      '/events/$eventId/requests',
+      tokenPropio: tokenCheckout,
+      body: {
+        'itunesTrackId': itunesTrackId,
+        'titulo': titulo,
+        'artista': artista,
+        'artworkUrl': artworkUrl,
+        'montoClp': montoClp,
+        'terminosAceptados': terminosAceptados,
+        if (cardToken != null) 'cardToken': cardToken,
+        if (paymentMethodId != null) 'paymentMethodId': paymentMethodId,
+        if (installments != null) 'installments': installments,
+      },
+    );
     return SongRequestModel.fromJson(data['request'] as Map<String, dynamic>);
   }
 
@@ -60,6 +78,17 @@ class RequestService {
   /// Las solicitudes que el propio Participante hizo en ese evento.
   Future<List<SongRequestModel>> misSolicitudes(String eventId) async {
     final data = await _api.get('/events/$eventId/requests/mine');
+    return (data['requests'] as List)
+        .cast<Map<String, dynamic>>()
+        .map(SongRequestModel.fromJson)
+        .toList();
+  }
+
+  /// Historial completo del Participante a través de TODOS sus eventos —
+  /// ver Perfil → "Historial de propinas". A diferencia de [misSolicitudes],
+  /// no está acotado a un evento puntual.
+  Future<List<SongRequestModel>> misSolicitudesGlobal() async {
+    final data = await _api.get('/requests/mine');
     return (data['requests'] as List)
         .cast<Map<String, dynamic>>()
         .map(SongRequestModel.fromJson)

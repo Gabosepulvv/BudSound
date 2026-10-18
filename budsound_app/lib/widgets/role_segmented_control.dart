@@ -32,11 +32,7 @@ class RoleSegmentedControl extends StatelessWidget {
               curve: Curves.easeOut,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                gradient: selected
-                    ? LinearGradient(
-                        colors: [AppColors.limeGreen, AppColors.limeDark],
-                      )
-                    : null,
+                color: selected ? AppColors.limeGreen : null,
               ),
               child: Material(
                 type: MaterialType.transparency,

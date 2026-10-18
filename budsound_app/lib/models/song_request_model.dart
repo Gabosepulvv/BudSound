@@ -17,6 +17,9 @@ class SongRequestModel {
     this.reproducidaAt,
     this.participanteNombre,
     this.participanteApellido,
+    this.bpm,
+    this.eventoNombre,
+    this.eventoCode,
   });
 
   final String id;
@@ -33,6 +36,14 @@ class SongRequestModel {
   final DateTime? reproducidaAt;
   final String? participanteNombre;
   final String? participanteApellido;
+  // BPM de la canción según Deezer ("mejor esfuerzo") — null si Deezer no
+  // tenía la canción, no la había analizado, o no respondió a tiempo.
+  final int? bpm;
+  // Solo vienen con datos cuando el request es del historial global del
+  // Participante (`GET /requests/mine`) — el resto de los endpoints no
+  // hacen join con events (ver request.model.js, `listarPorParticipante`).
+  final String? eventoNombre;
+  final String? eventoCode;
 
   bool get tienePropina => montoClp > 0;
   bool get pendiente => status == 'PENDIENTE';
@@ -73,6 +84,9 @@ class SongRequestModel {
           : null,
       participanteNombre: json['participante_nombre'] as String?,
       participanteApellido: json['participante_apellido'] as String?,
+      bpm: json['bpm'] != null ? (json['bpm'] as num).toInt() : null,
+      eventoNombre: json['evento_nombre'] as String?,
+      eventoCode: json['evento_code'] as String?,
     );
   }
 }

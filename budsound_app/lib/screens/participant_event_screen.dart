@@ -11,6 +11,8 @@ import '../services/pending_requests_store.dart';
 import '../services/request_service.dart';
 import '../services/song_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
+import '../widgets/ambient_lights_background.dart';
 import '../widgets/budsound_text_field.dart';
 import '../widgets/fade_slide_in.dart';
 import '../widgets/neon_gradient_button.dart';
@@ -79,7 +81,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
   Future<void> _cargarPopulares() async {
     setState(() => _buscando = true);
     try {
-      final resultados = await _songService.top();
+      final resultados = await _songService.top(eventId: widget.evento.id);
       if (!mounted) return;
       setState(() {
         _resultados = resultados;
@@ -110,7 +112,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     if (termino.trim().isEmpty) return;
     setState(() => _buscando = true);
     try {
-      final resultados = await _songService.buscar(termino);
+      final resultados =
+          await _songService.buscar(termino, eventId: widget.evento.id);
       if (!mounted) return;
       setState(() {
         _resultados = resultados;
@@ -255,12 +258,11 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.border),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.limeGreen.withOpacity(0.18),
-                  blurRadius: 40,
-                  spreadRadius: 4,
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 32,
+                  offset: const Offset(0, 12),
                 ),
               ],
             ),
@@ -288,10 +290,11 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                 Text(
                   _formatearClp(monto),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: AppColors.limeGreen,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 40),
+                  style: AppTheme.fontDisplay(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 40,
+                  ),
                 ),
                 const Text('CLP',
                     textAlign: TextAlign.center,
@@ -365,7 +368,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                   onChanged: (v) => setState(() => aceptaTerminos = v ?? false),
                   controlAffinity: ListTileControlAffinity.leading,
                   contentPadding: EdgeInsets.zero,
-                  activeColor: AppColors.limeGreen,
+                  activeColor: AppColors.success,
                   title: const Text(
                     'Entiendo que si el DJ acepta la propina, no hay devolución.',
                     style: TextStyle(color: AppColors.lavender, fontSize: 13),
@@ -373,7 +376,9 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                 ),
                 const SizedBox(height: 12),
                 NeonGradientButton(
-                  label: 'Enviar con propina',
+                  label: 'Enviar propina',
+                  color: AppColors.success,
+                  colorTexto: AppColors.onSuccess,
                   onPressed: () {
                     if (mostrarOtro &&
                         _validarMontoCustom(otroController.text) == null) {
@@ -418,16 +423,16 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: activo ? AppColors.limeGreen : AppColors.background,
+          color: activo ? AppColors.success : AppColors.background,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: activo ? AppColors.limeGreen : AppColors.border,
+            color: activo ? AppColors.success : AppColors.border,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: activo ? AppColors.onLime : AppColors.lavender,
+            color: activo ? AppColors.onSuccess : AppColors.lavender,
             fontWeight: FontWeight.w700,
             fontSize: 13,
           ),
@@ -450,14 +455,19 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           ],
         ),
       ),
-      body: Column(
+      body: Stack(
         children: [
-          if (!_conectado) _bannerSinConexion(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [_tabBuscar(), _tabMisSolicitudes()],
-            ),
+          const Positioned.fill(child: AmbientLightsBackground()),
+          Column(
+            children: [
+              if (!_conectado) _bannerSinConexion(),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [_tabBuscar(), _tabMisSolicitudes()],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -468,11 +478,11 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      color: AppColors.danger.withOpacity(0.15),
+      color: AppColors.danger.withValues(alpha: 0.15),
       child: Row(
         children: [
           Icon(Icons.wifi_off_rounded, color: AppColors.danger, size: 18),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Sin conexión — reconectando…',
@@ -506,16 +516,41 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
             ),
           ),
         ),
+        if (widget.evento.generos.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Row(
+              children: [
+                const Icon(Icons.tune_rounded, size: 14, color: AppColors.muted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Mostrando ${widget.evento.generos.join(', ')} — lo que pide este evento.',
+                    style:
+                        const TextStyle(color: AppColors.muted, fontSize: 11.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (_buscando)
           Expanded(
               child: Center(
-                  child: CircularProgressIndicator(color: AppColors.limeGreen)))
+                  child: CircularProgressIndicator(color: AppColors.success)))
         else
           Expanded(
             child: _resultados.isEmpty
-                ? const Center(
-                    child: Text('No se encontraron canciones.',
-                        style: TextStyle(color: AppColors.muted)),
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        widget.evento.generos.isNotEmpty
+                            ? 'No se encontraron canciones de ${widget.evento.generos.join(', ')} con ese término.'
+                            : 'No se encontraron canciones.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.muted),
+                      ),
+                    ),
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -571,7 +606,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                                 style: const TextStyle(color: AppColors.muted),
                               ),
                               trailing: Icon(Icons.add_circle_outline_rounded,
-                                  color: AppColors.limeGreen),
+                                  color: AppColors.success),
                             ),
                           ),
                         ),
@@ -671,7 +706,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
 
   Widget _tarjetaSolicitud(SongRequestModel solicitud) {
     final color = solicitud.aceptada
-        ? AppColors.limeGreen
+        ? AppColors.success
         : solicitud.rechazada
             ? AppColors.danger
             : solicitud.cancelada
@@ -725,7 +760,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           if (solicitud.aceptada && solicitud.tienePropina)
             Text('Pagado',
                 style: TextStyle(
-                    color: AppColors.limeGreen, fontWeight: FontWeight.w700)),
+                    color: AppColors.success, fontWeight: FontWeight.w700)),
         ],
       ),
     );

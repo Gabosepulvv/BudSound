@@ -28,6 +28,11 @@ class LiveScreen extends StatelessWidget {
           ],
         ),
       ),
+      // Sin `const` a propósito: si fueran const, Flutter los trataría como
+      // el mismo objeto en cada rebuild y nunca reconstruiría esta rama —
+      // por eso el modo daltónico (ColorblindModeService, ver
+      // ShellScreen._ShellScreenState.build) no se reflejaba acá aunque sí
+      // en Inicio y Perfil.
       body: esDj ? const DjEventsScreen() : const ParticipantJoinScreen(),
     );
   }

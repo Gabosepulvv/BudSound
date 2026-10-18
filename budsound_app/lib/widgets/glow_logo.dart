@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
 
-/// Isotipo oficial de Budsound con glow neón.
+/// Isotipo oficial de Budsound — plano, sin glow (el acento visual de la
+/// pantalla ya lo pone `DarkNeonScaffold`).
 class GlowLogo extends StatelessWidget {
   const GlowLogo({
     super.key,
@@ -20,24 +22,9 @@ class GlowLogo extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
+        SizedBox(
           width: size,
           height: size,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(size * 0.28),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.limeGreen.withOpacity(0.55),
-                blurRadius: 36,
-                spreadRadius: 4,
-              ),
-              BoxShadow(
-                color: AppColors.limeDark.withOpacity(0.35),
-                blurRadius: 64,
-                spreadRadius: 8,
-              ),
-            ],
-          ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(size * 0.28),
             child: Image.asset(
@@ -58,12 +45,11 @@ class GlowLogo extends StatelessWidget {
         ),
         if (showWordmark) ...[
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'budsound',
-            style: TextStyle(
+            style: AppTheme.fontDisplay(
               color: AppColors.white,
               fontSize: 28,
-              fontWeight: FontWeight.w700,
               letterSpacing: 1.6,
             ),
           ),

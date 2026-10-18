@@ -27,8 +27,8 @@ class BudsoundApp extends StatelessWidget {
   Widget build(BuildContext context) {
     // AppColors.limeGreen/limeDark/danger dependen de
     // ColorblindModeService.enabled — este ListenableBuilder reconstruye
-    // toda la app (tema incluido) cuando el toggle de Perfil cambia, para
-    // que la paleta nueva se vea de inmediato en cada pantalla.
+    // toda la app (tema incluido) cuando cambia, para que la paleta nueva
+    // se vea de inmediato en cada pantalla.
     return ListenableBuilder(
       listenable: ColorblindModeService.instance,
       builder: (context, _) {

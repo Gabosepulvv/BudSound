@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -26,28 +27,49 @@ class ApiClient {
   final http.Client _client;
   final SessionService _session;
 
+  /// `http.Client` no tiene ningún timeout por defecto — igual que
+  /// `Image.network` (ver DECISIONES_TECNICAS.md, entrada 36), una conexión
+  /// que se cuelga a mitad de camino (WiFi inestable, backend que no
+  /// responde) deja el `await` esperando para siempre, con el botón que lo
+  /// disparó mostrando su spinner sin parar nunca. Cada método de acá
+  /// agrega este límite; quien llame ya tiene (o debería tener) un
+  /// `catch` genérico que convierte cualquier excepción no-`ApiException`
+  /// en un mensaje de "revisa tu conexión" — `TimeoutException` cae ahí
+  /// solo, sin que haga falta tocar cada servicio uno por uno.
+  static const _timeout = Duration(seconds: 15);
+
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, String>? query,
     bool autenticado = true,
   }) async {
-    final response = await _client.get(
-      _uri(path, query),
-      headers: _headers(autenticado: autenticado),
-    );
+    final response = await _client
+        .get(
+          _uri(path, query),
+          headers: _headers(autenticado: autenticado),
+        )
+        .timeout(_timeout);
     return _procesar(response);
   }
 
+  /// [tokenPropio] reemplaza el JWT de sesión normal por uno específico —
+  /// ej. el token de checkout acotado (15 min, un solo evento) que usa
+  /// `McpCheckoutScreen` para no tener que levantar la sesión completa
+  /// desde ahí.
   Future<Map<String, dynamic>> post(
     String path, {
     Map<String, dynamic>? body,
     bool autenticado = true,
+    String? tokenPropio,
   }) async {
-    final response = await _client.post(
-      _uri(path),
-      headers: _headers(autenticado: autenticado),
-      body: body != null ? jsonEncode(body) : null,
-    );
+    final response = await _client
+        .post(
+          _uri(path),
+          headers:
+              _headers(autenticado: autenticado, tokenPropio: tokenPropio),
+          body: body != null ? jsonEncode(body) : null,
+        )
+        .timeout(_timeout);
     return _procesar(response);
   }
 
@@ -56,22 +78,28 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool autenticado = true,
   }) async {
-    final response = await _client.patch(
-      _uri(path),
-      headers: _headers(autenticado: autenticado),
-      body: body != null ? jsonEncode(body) : null,
-    );
+    final response = await _client
+        .patch(
+          _uri(path),
+          headers: _headers(autenticado: autenticado),
+          body: body != null ? jsonEncode(body) : null,
+        )
+        .timeout(_timeout);
     return _procesar(response);
   }
 
   Future<Map<String, dynamic>> delete(
     String path, {
+    Map<String, dynamic>? body,
     bool autenticado = true,
   }) async {
-    final response = await _client.delete(
-      _uri(path),
-      headers: _headers(autenticado: autenticado),
-    );
+    final response = await _client
+        .delete(
+          _uri(path),
+          headers: _headers(autenticado: autenticado),
+          body: body != null ? jsonEncode(body) : null,
+        )
+        .timeout(_timeout);
     return _procesar(response);
   }
 
@@ -81,9 +109,9 @@ class ApiClient {
     );
   }
 
-  Map<String, String> _headers({required bool autenticado}) {
+  Map<String, String> _headers({required bool autenticado, String? tokenPropio}) {
     final headers = {'Content-Type': 'application/json'};
-    final token = _session.jwt;
+    final token = tokenPropio ?? _session.jwt;
     if (autenticado && token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }

@@ -4,6 +4,7 @@ import '../core/app_routes.dart';
 import '../models/google_perfil_pendiente.dart';
 import '../models/user_role.dart';
 import '../services/auth_service.dart';
+import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/budsound_text_field.dart';
 import '../widgets/dark_neon_scaffold.dart';
@@ -69,6 +70,12 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (!mounted) return;
       setState(() => _cargandoGoogle = false);
+      // Esta rama solo se llega cuando Google confirmó a alguien sin
+      // cuenta todavía (ver `necesitaRolGoogle` arriba) — a diferencia de
+      // un login de Google normal, acá sí es una cuenta recién creada.
+      if (resultFinal.exito) {
+        await SessionService.instance.marcarTutorialPendiente();
+      }
       _trasAuth(resultFinal);
       return;
     }

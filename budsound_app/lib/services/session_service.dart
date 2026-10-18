@@ -29,6 +29,7 @@ class SessionService {
   static const _kNombre = 'budsound.nombre';
   static const _kUsuario = 'budsound.usuario';
   static const _kUltimoEventoCode = 'budsound.ultimoEventoCode';
+  static const _kTutorialPendiente = 'budsound.tutorialPendiente';
 
   final _secureStorage = const FlutterSecureStorage();
 
@@ -39,6 +40,7 @@ class SessionService {
   UserRole _rol = UserRole.publico;
   UserModel? _usuario;
   String? _ultimoEventoCode;
+  bool _tutorialPendiente = false;
 
   String? get jwt => _jwt;
   String? get email => _email;
@@ -53,6 +55,26 @@ class SessionService {
   String? get ultimoEventoCode => _ultimoEventoCode;
 
   bool get hasSession => _jwt != null && _jwt!.isNotEmpty;
+
+  /// Si una cuenta recién registrada todavía no vio el recorrido express
+  /// (ver OnboardingScreen) — se marca al registrarse (RegisterScreen,
+  /// LoginScreen tras completar el registro con Google) y se limpia sola
+  /// apenas ShellScreen lo muestra una vez. Persistido (no solo en
+  /// memoria) porque entre registrarse y el primer login real puede pasar
+  /// por confirmar el correo, lo que cierra y reabre la app.
+  bool get tutorialPendiente => _tutorialPendiente;
+
+  Future<void> marcarTutorialPendiente() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    _tutorialPendiente = true;
+    await _prefs!.setBool(_kTutorialPendiente, true);
+  }
+
+  Future<void> marcarTutorialVisto() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    _tutorialPendiente = false;
+    await _prefs!.remove(_kTutorialPendiente);
+  }
 
   /// Carga claves persistidas. Llamar en [main] antes de [runApp].
   Future<void> cargarDesdeDisco() async {
@@ -72,6 +94,7 @@ class SessionService {
       );
     }
     _ultimoEventoCode = _prefs?.getString(_kUltimoEventoCode);
+    _tutorialPendiente = _prefs?.getBool(_kTutorialPendiente) ?? false;
   }
 
   /// Lee el JWT de almacenamiento seguro; si no hay nada ahí pero sí queda

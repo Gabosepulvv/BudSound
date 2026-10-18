@@ -9,6 +9,7 @@ class UserModel {
     required this.fechaNacimiento,
     required this.rol,
     this.nombreArtistico,
+    this.nombreArtisticoCambiadoAt,
     this.id,
     this.avatarDataUrl,
   });
@@ -23,6 +24,11 @@ class UserModel {
 
   /// Solo aplica cuando [rol] es [UserRole.dj].
   final String? nombreArtistico;
+
+  /// Último cambio de [nombreArtistico] — el backend lo exige para aplicar
+  /// el cooldown de 30 días entre cambios (ver CLAUDE.md /
+  /// auth.controller.js). Null si nunca lo cambió desde que se registró.
+  final DateTime? nombreArtisticoCambiadoAt;
 
   /// Data URL (`data:image/...;base64,...`) de la foto de perfil, o null.
   final String? avatarDataUrl;
@@ -68,6 +74,8 @@ class UserModel {
         'fechaNacimiento': fechaNacimiento.toIso8601String(),
         'rol': rol.name,
         'nombreArtistico': nombreArtistico,
+        'nombreArtisticoCambiadoAt':
+            nombreArtisticoCambiadoAt?.toIso8601String(),
         'avatarDataUrl': avatarDataUrl,
       };
 
@@ -86,6 +94,8 @@ class UserModel {
         orElse: () => UserRole.publico,
       ),
       nombreArtistico: json['nombreArtistico'] as String?,
+      nombreArtisticoCambiadoAt: DateTime.tryParse(
+          json['nombreArtisticoCambiadoAt'] as String? ?? ''),
       avatarDataUrl: json['avatarDataUrl'] as String?,
     );
   }

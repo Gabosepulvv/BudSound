@@ -7,7 +7,7 @@ import '../widgets/dark_neon_scaffold.dart';
 import '../widgets/glow_logo.dart';
 import '../widgets/neon_gradient_button.dart';
 
-/// Recuperación de contraseña (simulada hasta conectar el backend).
+/// Recuperación de contraseña por correo — ver `AuthService.solicitarRecuperacion`.
 class RecoverPasswordScreen extends StatefulWidget {
   const RecoverPasswordScreen({super.key});
 
@@ -66,7 +66,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                   const SizedBox(height: 16),
                   Text(
                     _enviado
-                        ? 'Si el correo existe, te enviaremos un enlace (flujo simulado).'
+                        ? 'Si el correo corresponde a una cuenta, te enviamos un enlace para restablecer tu contraseña.'
                         : 'Escribe el correo de tu cuenta y te guiaremos para restablecer el acceso.',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: AppColors.muted),

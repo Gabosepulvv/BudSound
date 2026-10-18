@@ -5,16 +5,24 @@ import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../core/api_config.dart';
+import '../services/api_client.dart';
 import '../services/request_service.dart';
 import '../theme/app_colors.dart';
 
 /// WebView con el formulario de tarjeta de MercadoPago (Card Payment Brick,
-/// servido por el propio backend en `/pay/checkout`) para autorizar la
-/// propina antes de crear la solicitud — ver CLAUDE.md, riesgo
-/// "Autorización de pago vs. captura". La página es quien llama de vuelta a
-/// `POST /events/:id/requests` con el token de la tarjeta; esta pantalla
-/// solo muestra el WebView y espera el resultado por el canal
-/// `BudSoundCheckout`.
+/// servido por el propio backend en `/pay/checkout`) para tokenizar la
+/// tarjeta antes de crear la solicitud — ver CLAUDE.md, riesgo
+/// "Autorización de pago vs. captura".
+///
+/// El `POST /events/:id/requests` (donde se autoriza el pago de verdad) lo
+/// hace ESTA pantalla con el cliente HTTP de Dart, no el WebView con
+/// `fetch()` — se probó a mano que ese `fetch()` puede quedarse colgado
+/// para siempre sin ningún error visible (ni de red, ni de JS), mientras
+/// el mismo endpoint responde en ~1s llamado por `package:http` (el mismo
+/// cliente que ya usa `_iniciar()` acá abajo para pedir el HTML de la
+/// página). La página solo tokeniza la tarjeta y avisa por el canal
+/// `BudSoundCheckout`; ver `checkout.controller.js` para el porqué en más
+/// detalle.
 class McpCheckoutScreen extends StatefulWidget {
   const McpCheckoutScreen({
     super.key,
@@ -44,6 +52,8 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
   WebViewController? _controller;
   bool _cargando = true;
   String? _errorInicial;
+  String? _checkoutToken;
+  bool _confirmando = false;
 
   @override
   void initState() {
@@ -59,6 +69,7 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
     try {
       checkoutToken =
           await _requestService.obtenerTokenCheckout(widget.eventId);
+      _checkoutToken = checkoutToken;
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -75,9 +86,11 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
     // WebView nativo de Android maneja mal un POST con body JSON (falla
     // con "Webpage not available" en vez de mandar la solicitud). Una vez
     // que tenemos el HTML de respuesta, se lo pasamos al WebView con
-    // loadHtmlString; baseUrl es necesario para que el fetch('/api/...')
-    // relativo que hace esa página (ver checkout.controller.js) resuelva
-    // contra nuestro backend y no contra "about:blank".
+    // loadHtmlString; baseUrl es necesario para que los recursos relativos
+    // que carga esa página (ver checkout.controller.js) resuelvan contra
+    // nuestro backend y no contra "about:blank". Ya no se manda el
+    // `checkoutToken` acá — la página no vuelve a llamar a nuestra API
+    // (ver comentario de la clase), solo esta pantalla lo usa más abajo.
     final String html;
     try {
       final respuesta = await http.post(
@@ -91,7 +104,6 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
           'artworkUrl': widget.artworkUrl,
           'montoClp': widget.montoClp,
           'terminosAceptados': widget.terminosAceptados,
-          'jwt': checkoutToken,
         }),
       );
       if (respuesta.statusCode != 200) {
@@ -149,10 +161,8 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
   void _onMensajeDePagina(JavaScriptMessage message) {
     if (!mounted) return;
     final texto = message.message;
-    if (texto == 'ok') {
-      Navigator.of(context).pop(true);
-      return;
-    }
+    _diag('Flutter: mensaje recibido del canal.');
+
     if (texto.startsWith('error:')) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -160,6 +170,105 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
           backgroundColor: AppColors.danger,
         ),
       );
+      return;
+    }
+
+    // Mensaje estructurado del Brick con el token de la tarjeta ya
+    // tokenizada (ver checkout.controller.js, onSubmit) — el único caso
+    // que no es el string plano "error:...".
+    Map<String, dynamic>? datos;
+    try {
+      datos = jsonDecode(texto) as Map<String, dynamic>;
+    } catch (_) {
+      return;
+    }
+    if (datos['tipo'] == 'token') {
+      _confirmarPago(
+        cardToken: datos['cardToken'] as String,
+        paymentMethodId: datos['paymentMethodId'] as String,
+        installments: (datos['installments'] as num?)?.toInt(),
+      );
+    }
+  }
+
+  /// El POST real a `/events/:id/requests` — hecho acá con el cliente HTTP
+  /// de Dart en vez de dentro del WebView, ver el comentario de la clase.
+  Future<void> _confirmarPago({
+    required String cardToken,
+    required String paymentMethodId,
+    int? installments,
+  }) async {
+    if (_confirmando) return;
+    _confirmando = true;
+    _diag('Flutter: llamando a POST /events/${widget.eventId}/requests…');
+    try {
+      await _requestService.crear(
+        eventId: widget.eventId,
+        itunesTrackId: widget.itunesTrackId,
+        titulo: widget.titulo,
+        artista: widget.artista,
+        artworkUrl: widget.artworkUrl,
+        montoClp: widget.montoClp,
+        terminosAceptados: widget.terminosAceptados,
+        cardToken: cardToken,
+        paymentMethodId: paymentMethodId,
+        installments: installments,
+        tokenCheckout: _checkoutToken,
+      );
+      _diag('Flutter: respuesta OK, solicitud creada.');
+      await _avisarResultadoALaPagina(ok: true);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      _diag('Flutter: ApiException — ${e.message}');
+      await _avisarResultadoALaPagina(ok: false, mensaje: e.message);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.danger),
+      );
+    } catch (error) {
+      const mensaje = 'No se pudo conectar con el servidor.';
+      _diag('Flutter: error inesperado — $error');
+      await _avisarResultadoALaPagina(ok: false, mensaje: mensaje);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: const Text(mensaje), backgroundColor: AppColors.danger),
+      );
+    } finally {
+      _confirmando = false;
+    }
+  }
+
+  /// Escribe en el panel de diagnóstico de la propia página (ver `diag()`
+  /// en checkout.controller.js, expuesta como `window.diag`) — sin esto,
+  /// el rastro se corta justo cuando el control pasa de la página al
+  /// código de Flutter, que es exactamente la parte que había que poder
+  /// ver para encontrar dónde se trababa el flujo real.
+  void _diag(String texto) {
+    final controller = _controller;
+    if (controller == null) return;
+    controller
+        .runJavaScript('window.diag && window.diag(${jsonEncode(texto)});')
+        .catchError((_) {});
+  }
+
+  /// Actualiza el texto de estado dentro del WebView (ver
+  /// `window.budsoundResultado` en checkout.controller.js) para que la
+  /// persona vea "Listo." o el error ahí mismo, en vez de que la página
+  /// se quede congelada en "Confirmando con BudSound...".
+  Future<void> _avisarResultadoALaPagina({
+    required bool ok,
+    String? mensaje,
+  }) async {
+    final controller = _controller;
+    if (controller == null) return;
+    final mensajeJs = jsonEncode(mensaje ?? '');
+    try {
+      await controller
+          .runJavaScript('window.budsoundResultado($ok, $mensajeJs);');
+    } catch (_) {
+      // La página pudo haberse descargado ya (ej. si la persona volvió
+      // atrás) — no hay nada que avisar en ese caso.
     }
   }
 
