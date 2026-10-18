@@ -13,11 +13,11 @@ class ApiConfig {
 
   /// Cambiar a `true` (y completar [_hostProduccion]) antes de compilar un
   /// build para repartir a gente fuera de la red local del equipo.
-  static const bool _usarProduccion = false;
+  static const bool _usarProduccion = true;
 
   /// Dominio que asigna Railway al desplegar, SIN `https://` ni `/` al
   /// final — ej. `budsound-backend-production.up.railway.app`.
-  static const String _hostProduccion = '';
+  static const String _hostProduccion = 'budsound-production.up.railway.app';
 
   static const String _hostDesarrollo = 'localhost';
   static const int _puerto = 3000;
