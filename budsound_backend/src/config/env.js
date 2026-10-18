@@ -36,12 +36,16 @@ module.exports = {
   // Mientras no esté configurado, el registro no exige verificar el correo
   // (mismo patrón que MercadoPago/Google: la app funciona igual sin
   // credenciales, solo que sin esa capa extra).
+  // .trim() porque un espacio/tab accidental al pegar el valor en el panel
+  // de Railway (pasó con SMTP_HOST, 2026-10-18) rompe la resolución DNS del
+  // servidor SMTP de forma nada obvia — el error (`ENOTFOUND`) no deja ver
+  // que la causa es un espacio invisible al principio del valor.
   smtp: {
-    host: process.env.SMTP_HOST || '',
+    host: (process.env.SMTP_HOST || '').trim(),
     port: Number(process.env.SMTP_PORT) || 587,
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || '',
-    from: process.env.SMTP_FROM || 'BudSound <no-reply@budsound.app>',
+    user: (process.env.SMTP_USER || '').trim(),
+    pass: (process.env.SMTP_PASS || '').trim(),
+    from: (process.env.SMTP_FROM || 'BudSound <no-reply@budsound.app>').trim(),
   },
   // URL pública donde este backend responde (para armar el link del correo
   // de verificación) — en Railway, el dominio que genera "Networking ->
