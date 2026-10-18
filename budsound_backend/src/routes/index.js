@@ -7,7 +7,6 @@ const paymentRoutes = require('./payment.routes');
 const djRoutes = require('./dj.routes');
 const paymentController = require('../controllers/payment.controller');
 const mercadopagoService = require('../services/mercadopago.service');
-const emailService = require('../services/email.service');
 const { pool } = require('../config/db');
 
 const router = Router();
@@ -29,21 +28,6 @@ router.get('/health', async (req, res) => {
 // flujo de pago real sin tocar la app.
 router.get('/payment-mode', (req, res) => {
   res.json({ pagoReal: mercadopagoService.credencialesListas() });
-});
-
-// TEMPORAL — diagnóstico del envío de correo en Railway (ver sesión de
-// debugging del SMTP, 2026-10-18). Borrar apenas se confirme la causa.
-router.get('/debug/test-email', async (req, res) => {
-  try {
-    await emailService.enviarCorreoVerificacion({
-      to: 'budsoundapp@gmail.com',
-      nombre: 'Diagnóstico',
-      verificationUrl: 'https://example.com/test',
-    });
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: error.message, stack: error.stack });
-  }
 });
 
 router.use('/auth', authRoutes);
