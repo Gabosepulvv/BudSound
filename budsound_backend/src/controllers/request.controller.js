@@ -4,6 +4,7 @@ const eventModel = require('../models/event.model');
 const transactionModel = require('../models/transaction.model');
 const mercadopagoService = require('../services/mercadopago.service');
 const mercadopagoOauthService = require('../services/mercadopago-oauth.service');
+const deezerService = require('../services/deezer.service');
 const env = require('../config/env');
 const { ApiError } = require('../middleware/error.middleware');
 const asyncHandler = require('../utils/asyncHandler');
@@ -76,6 +77,10 @@ const crear = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Falta el método de pago para la propina.');
   }
 
+  // Mejor esfuerzo: nunca bloquea ni hace fallar la solicitud si Deezer no
+  // tiene la canción o no responde (ver deezer.service.js).
+  const bpm = await deezerService.buscarBpm({ titulo: titulo.trim(), artista: artista.trim() });
+
   const request = await requestModel.crear({
     eventId: event.id,
     participanteId: req.user.sub,
@@ -85,6 +90,7 @@ const crear = asyncHandler(async (req, res) => {
     artworkUrl,
     montoClp: monto,
     terminosAceptados: monto > 0 ? true : Boolean(terminosAceptados),
+    bpm,
   });
 
   let transaction = null;
@@ -122,6 +128,7 @@ const crear = asyncHandler(async (req, res) => {
         status: 'AUTORIZADA',
       });
     } catch (error) {
+      console.error('Detalle de MercadoPago al autorizar pago:', JSON.stringify(error.mpData ?? error.message, null, 2));
       await requestModel.eliminar(request.id);
       throw new ApiError(402, `El pago no se pudo autorizar: ${error.message}`);
     }
@@ -146,6 +153,13 @@ const misSolicitudesEnEvento = asyncHandler(async (req, res) => {
   if (!event) throw new ApiError(404, 'Evento no encontrado.');
 
   const requests = await requestModel.listarPorEventoYParticipante(event.id, req.user.sub);
+  res.json({ requests });
+});
+
+// Historial completo del Participante (todos sus eventos) — ver Perfil →
+// "Historial de propinas".
+const misSolicitudes = asyncHandler(async (req, res) => {
+  const requests = await requestModel.listarPorParticipante(req.user.sub);
   res.json({ requests });
 });
 
@@ -229,6 +243,7 @@ module.exports = {
   crear,
   listarPorEvento,
   misSolicitudesEnEvento,
+  misSolicitudes,
   aceptar,
   rechazar,
   marcarReproducida,

@@ -29,6 +29,11 @@ CREATE TABLE users (
   nombre            TEXT NOT NULL,
   apellido          TEXT NOT NULL,
   nombre_artistico  TEXT,
+  -- Último cambio de nombre_artistico — el DJ solo puede cambiarlo sin un
+  -- evento activo y como máximo una vez cada 30 días (ver
+  -- auth.controller.js, `actualizarPerfil`). NULL = nunca lo cambió desde
+  -- que se registró, así que no aplica el cooldown todavía.
+  nombre_artistico_cambiado_at TIMESTAMPTZ,
   -- Data URL (data:image/...;base64,...) de la foto de perfil. Se guarda
   -- directo en la fila en vez de un archivo en disco porque Railway (free
   -- tier) tiene filesystem efímero — un archivo subido se perdería en el
@@ -42,6 +47,12 @@ CREATE TABLE users (
   email_verificado  BOOLEAN NOT NULL DEFAULT false,
   verificacion_token_hash    TEXT,
   verificacion_token_expira  TIMESTAMPTZ,
+  -- Mismo patrón que el token de verificación de arriba (hash, nunca el
+  -- token en texto plano; expira solo) — para el link de "olvidé mi
+  -- contraseña" que llega por correo (ver auth.controller.js,
+  -- `solicitarRecuperacion`/`restablecerPassword`).
+  reset_password_token_hash    TEXT,
+  reset_password_token_expira  TIMESTAMPTZ,
   -- OAuth de MercadoPago como marketplace (solo DJ): con esto conectado,
   -- las propinas de sus eventos se cobran directo en SU cuenta (menos la
   -- comisión de BudSound vía `application_fee`) en vez de pasar por la
@@ -51,6 +62,12 @@ CREATE TABLE users (
   mp_access_token      TEXT,
   mp_refresh_token     TEXT,
   mp_token_expira      TIMESTAMPTZ,
+  -- Nickname/correo de la cuenta de MercadoPago conectada — se muestran en
+  -- Perfil para que el DJ pueda verificar que quedó la cuenta correcta
+  -- (sin esto, no hay forma de distinguir una cuenta de otra a simple
+  -- vista, solo un ID numérico).
+  mp_nickname          TEXT,
+  mp_email             TEXT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -59,6 +76,30 @@ CREATE TABLE events (
   dj_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   code          TEXT NOT NULL UNIQUE, -- valor que se codifica en el QR
   nombre        TEXT NOT NULL,
+  -- Hora de inicio/término que el DJ declara al crear el evento — es
+  -- informativa (se muestra al público y al propio DJ), no cierra el
+  -- evento sola al llegar la hora: el cierre real sigue siendo manual
+  -- (`PATCH /events/:id/close`) o por el cron de solicitudes colgadas.
+  hora_inicio   TIME,
+  hora_fin      TIME,
+  -- Fecha(s) real(es) del evento (no cuándo se creó el registro en la
+  -- app) — para que el DJ pueda saber, meses después, qué día fue tal
+  -- evento al revisar su historial en Perfil. Iguales para un evento de
+  -- un solo día; `fecha_fin` > `fecha_inicio` para uno de varios días.
+  -- Nullable porque los eventos creados antes de esta columna no la
+  -- tienen — el historial cae de vuelta a `created_at` para esos.
+  fecha_inicio  DATE,
+  fecha_fin     DATE,
+  -- Géneros que el DJ declara para el evento (lista fija, ver
+  -- GENEROS_VALIDOS en event.controller.js) — informativo para quien se
+  -- une, no restringe qué puede pedirse (la búsqueda de canciones sigue
+  -- siendo libre vía iTunes).
+  generos       TEXT[] NOT NULL DEFAULT '{}',
+  -- Data URL (data:image/...;base64,...) de la imagen del evento —
+  -- opcional, mismo patrón que `avatar_data_url` de `users`: se guarda
+  -- directo en la fila en vez de un archivo en disco porque Railway
+  -- (free tier) tiene filesystem efímero.
+  imagen_data_url TEXT,
   status        event_status NOT NULL DEFAULT 'ACTIVO',
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   closed_at     TIMESTAMPTZ
@@ -82,6 +123,12 @@ CREATE TABLE song_requests (
   -- dinero" en CLAUDE.md) — ahora siempre obligatorio, toda solicitud lleva
   -- propina.
   terminos_aceptados BOOLEAN NOT NULL CHECK (terminos_aceptados = true),
+  -- BPM de la canción según Deezer (ver deezer.service.js) — "mejor
+  -- esfuerzo", nulo si Deezer no tiene la canción, no la analizó, o no
+  -- respondió a tiempo. Se calcula una sola vez al crear la solicitud (no
+  -- en cada carga de la cola) para que el DJ vea el ritmo de lo que le
+  -- piden y pueda mezclar sin tener que buscarlo a mano.
+  bpm               INTEGER,
   status            request_status NOT NULL DEFAULT 'PENDIENTE',
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at       TIMESTAMPTZ,

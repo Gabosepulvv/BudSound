@@ -49,7 +49,14 @@ module.exports = {
   publicUrl: process.env.PUBLIC_URL || `http://localhost:${Number(process.env.PORT) || 3000}`,
   commissionRate: Number(process.env.BUDSOUND_COMMISSION_RATE) || 0.08,
   // Ver CLAUDE.md, riesgo "Autorización de pago vs. captura": una solicitud
-  // pendiente no puede quedar colgada para siempre.
-  requestTimeoutHours: Number(process.env.REQUEST_TIMEOUT_HOURS) || 6,
-  cleanupIntervalMinutes: Number(process.env.CLEANUP_INTERVAL_MINUTES) || 15,
+  // pendiente no puede quedar colgada para siempre. 7 minutos porque es un
+  // evento en vivo — el Participante está ahí mismo esperando una
+  // respuesta, no tiene sentido hacerlo esperar horas como con una compra
+  // online común.
+  requestTimeoutMinutes: Number(process.env.REQUEST_TIMEOUT_MINUTES) || 7,
+  // Corre seguido (no cada 15 min como antes) porque el plazo mismo ahora
+  // es de minutos, no de horas — si el barrido corriera cada 15 min, una
+  // solicitud podría quedar "vencida" sin cancelarse hasta 15 minutos
+  // después de cumplirse el plazo.
+  cleanupIntervalMinutes: Number(process.env.CLEANUP_INTERVAL_MINUTES) || 1,
 };

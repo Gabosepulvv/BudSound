@@ -76,11 +76,14 @@ const callback = asyncHandler(async (req, res) => {
 
   try {
     const token = await mpOauthService.intercambiarCodigo(code);
+    const identidad = await mpOauthService.obtenerIdentidad(token.access_token);
     await userModel.guardarConexionMercadoPago(djId, {
       collectorId: token.user_id,
       accessToken: token.access_token,
       refreshToken: token.refresh_token,
       expiraEn: new Date(Date.now() + token.expires_in * 1000),
+      nickname: identidad.nickname,
+      email: identidad.email,
     });
   } catch (error) {
     console.error('Error conectando MercadoPago del DJ:', error.message);
@@ -99,6 +102,8 @@ const estado = asyncHandler(async (req, res) => {
   res.json({
     conectado: Boolean(conexion?.mp_access_token),
     collectorId: conexion?.mp_collector_id ?? null,
+    nickname: conexion?.mp_nickname ?? null,
+    email: conexion?.mp_email ?? null,
   });
 });
 

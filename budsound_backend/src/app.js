@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const env = require('./config/env');
 const routes = require('./routes');
 const { paginaCheckout } = require('./controllers/checkout.controller');
+const { paginaDisplay } = require('./controllers/display.controller');
 const { notFoundHandler, errorHandler } = require('./middleware/error.middleware');
 
 function crearApp(io) {
@@ -12,9 +13,19 @@ function crearApp(io) {
 
   app.use(helmet());
   app.use(cors({ origin: env.corsOrigin }));
-  // Límite subido de 100kb (default de Express) a 3mb: la foto de perfil
-  // viaja como base64 dentro del JSON, no como multipart.
-  app.use(express.json({ limit: '3mb' }));
+  // Límite subido de 100kb (default de Express) a 4mb: tanto la foto de
+  // perfil (ver AVATAR_MAX_LENGTH, 2.8MB) como la imagen de un evento (ver
+  // IMAGEN_EVENTO_MAX_LENGTH, 3.5MB) viajan como base64 dentro del JSON, no
+  // como multipart — este límite tiene que quedar por encima del más
+  // grande de los dos (con margen para el resto del body), si no Express
+  // la rechaza con un 413 genérico antes de que la validación propia de
+  // cada controlador llegue a correr.
+  app.use(express.json({ limit: '4mb' }));
+  // El único que manda datos como formulario HTML (`x-www-form-urlencoded`,
+  // no JSON) es el formulario de "nueva contraseña" que abre el link del
+  // correo de recuperación (`paginaRestablecer`/`confirmarRestablecer` en
+  // auth.controller.js) — es una página de navegador, no un fetch de la app.
+  app.use(express.urlencoded({ extended: true }));
   app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
   // Expone Socket.io a los controladores (req.io) para emitir eventos
@@ -28,6 +39,11 @@ function crearApp(io) {
   // JSON) — ahí vive el formulario de tarjeta de MercadoPago para tokenizar
   // el pago de una propina (ver checkout.controller.js).
   app.post('/pay/checkout', paginaCheckout);
+
+  // Página pública (sin login) para mostrar el QR en grande en una TV o
+  // tablet del local — el código ya es público por diseño (ver
+  // display.controller.js), así que no necesita autenticación.
+  app.get('/display/:code', paginaDisplay);
 
   app.use('/api', routes);
 

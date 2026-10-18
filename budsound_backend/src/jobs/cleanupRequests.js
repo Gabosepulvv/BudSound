@@ -9,7 +9,7 @@ const env = require('../config/env');
 /// cada sala de evento por Socket.io para que las UI conectadas se
 /// actualicen sin esperar un refresh manual.
 async function limpiarSolicitudesColgadas(io) {
-  const canceladas = await requestModel.cancelarSolicitudesColgadas(env.requestTimeoutHours);
+  const canceladas = await requestModel.cancelarSolicitudesColgadas(env.requestTimeoutMinutes);
 
   if (canceladas.length === 0) return 0;
 

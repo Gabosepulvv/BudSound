@@ -47,11 +47,12 @@ async function enviarCorreoVerificacion({ to, nombre, verificationUrl }) {
           <span style="color:#FFFFFF;font-size:22px;font-weight:700;letter-spacing:1px;">budsound</span>
         </td></tr>
         <tr><td style="color:#FFFFFF;font-size:17px;font-weight:700;padding-bottom:8px;">
-          ¡Hola, ${nombreSeguro}!
+          Hola, ${nombreSeguro} 🎧
         </td></tr>
         <tr><td style="color:#93A2BE;font-size:14px;line-height:1.5;padding-bottom:24px;">
-          Confirma que este correo es tuyo para activar tu cuenta de BudSound.
-          Solo toca el botón — no necesitas hacer nada más.
+          Gracias por sumarte a BudSound. Confirma que este correo es tuyo
+          para activar tu cuenta y empezar a mover la pista — solo toca el
+          botón, no necesitas hacer nada más.
         </td></tr>
         <tr><td align="center" style="padding-bottom:20px;">
           <a href="${urlSegura}" style="display:inline-block;background:#B4FF39;color:#0B1403;font-weight:700;font-size:15px;text-decoration:none;padding:14px 28px;border-radius:14px;">
@@ -63,7 +64,11 @@ async function enviarCorreoVerificacion({ to, nombre, verificationUrl }) {
           <span style="color:#B4FF39;word-break:break-all;">${urlSegura}</span>
         </td></tr>
         <tr><td style="color:#93A2BE;font-size:12px;padding-top:18px;">
-          Este link vence en 24 horas. Si tú no creaste esta cuenta, ignora este correo.
+          Este link vence en 24 horas. Si tú no creaste esta cuenta, puedes
+          ignorar este correo con tranquilidad.
+        </td></tr>
+        <tr><td style="color:#4F5A70;font-size:12px;padding-top:22px;">
+          — El equipo de BudSound 🎶
         </td></tr>
       </table>
     </td></tr>
@@ -73,4 +78,56 @@ async function enviarCorreoVerificacion({ to, nombre, verificationUrl }) {
   });
 }
 
-module.exports = { credencialesListas, enviarCorreoVerificacion };
+// Mismo diseño que `enviarCorreoVerificacion` — un solo botón, nada que
+// escribir desde el correo mismo (eso pasa en la página que abre el link,
+// ver `paginaRestablecer` en auth.controller.js).
+async function enviarCorreoRecuperacion({ to, nombre, resetUrl }) {
+  const nombreSeguro = escapeHtml(nombre);
+  const urlSegura = escapeHtml(resetUrl);
+
+  await obtenerTransporter().sendMail({
+    from: env.smtp.from,
+    to,
+    subject: 'Recupera tu contraseña de BudSound',
+    html: `<!DOCTYPE html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#070B14;font-family:-apple-system,system-ui,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#070B14;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:420px;background:#0D1626;border-radius:18px;border:1px solid #1E2C44;padding:32px 28px;">
+        <tr><td align="center" style="padding-bottom:18px;">
+          <span style="color:#FFFFFF;font-size:22px;font-weight:700;letter-spacing:1px;">budsound</span>
+        </td></tr>
+        <tr><td style="color:#FFFFFF;font-size:17px;font-weight:700;padding-bottom:8px;">
+          Hola, ${nombreSeguro} 🎧
+        </td></tr>
+        <tr><td style="color:#93A2BE;font-size:14px;line-height:1.5;padding-bottom:24px;">
+          Recibimos una solicitud para restablecer la contraseña de tu
+          cuenta de BudSound. Si fuiste tú, toca el botón para elegir una
+          nueva y volver al ritmo.
+        </td></tr>
+        <tr><td align="center" style="padding-bottom:20px;">
+          <a href="${urlSegura}" style="display:inline-block;background:#B4FF39;color:#0B1403;font-weight:700;font-size:15px;text-decoration:none;padding:14px 28px;border-radius:14px;">
+            Elegir nueva contraseña
+          </a>
+        </td></tr>
+        <tr><td style="color:#93A2BE;font-size:12px;line-height:1.5;">
+          Si el botón no funciona, copia y pega este link en tu navegador:<br/>
+          <span style="color:#B4FF39;word-break:break-all;">${urlSegura}</span>
+        </td></tr>
+        <tr><td style="color:#93A2BE;font-size:12px;padding-top:18px;">
+          Este link vence en 1 hora. Si no fuiste tú, puedes ignorar este
+          correo con tranquilidad — tu contraseña sigue igual.
+        </td></tr>
+        <tr><td style="color:#4F5A70;font-size:12px;padding-top:22px;">
+          — El equipo de BudSound 🎶
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  });
+}
+
+module.exports = { credencialesListas, enviarCorreoVerificacion, enviarCorreoRecuperacion };

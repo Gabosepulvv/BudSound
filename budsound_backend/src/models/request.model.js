@@ -9,11 +9,12 @@ async function crear({
   artworkUrl,
   montoClp,
   terminosAceptados,
+  bpm,
 }) {
   const { rows } = await pool.query(
     `INSERT INTO song_requests
-       (event_id, participante_id, itunes_track_id, titulo, artista, artwork_url, monto_clp, terminos_aceptados)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (event_id, participante_id, itunes_track_id, titulo, artista, artwork_url, monto_clp, terminos_aceptados, bpm)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
       eventId,
@@ -24,6 +25,7 @@ async function crear({
       artworkUrl || null,
       montoClp || 0,
       Boolean(terminosAceptados),
+      bpm || null,
     ],
   );
   return rows[0];
@@ -70,6 +72,23 @@ async function listarPorEventoYParticipante(eventId, participanteId) {
   return rows;
 }
 
+// Historial del Participante a través de TODOS sus eventos (no solo el
+// activo) — a diferencia de `listarPorEventoYParticipante`, que es la vista
+// acotada que usa `ParticipantEventScreen` mientras está dentro de un
+// evento puntual. Sirve para la pantalla de Perfil → "Historial de
+// propinas".
+async function listarPorParticipante(participanteId) {
+  const { rows } = await pool.query(
+    `SELECT sr.*, e.nombre AS evento_nombre, e.code AS evento_code
+     FROM song_requests sr
+     JOIN events e ON e.id = sr.event_id
+     WHERE sr.participante_id = $1
+     ORDER BY sr.created_at DESC`,
+    [participanteId],
+  );
+  return rows;
+}
+
 async function resolver(id, status) {
   const { rows } = await pool.query(
     `UPDATE song_requests SET status = $2, resolved_at = now()
@@ -99,16 +118,16 @@ async function marcarReproducida(id) {
 // captura" — la vigencia real de una autorización de MercadoPago es de 7
 // días, pero acá se usa un plazo mucho más corto porque no tiene sentido
 // dejar a alguien esperando toda la noche una respuesta que nunca llegó).
-async function cancelarSolicitudesColgadas(timeoutHours) {
+async function cancelarSolicitudesColgadas(timeoutMinutes) {
   const { rows } = await pool.query(
     `UPDATE song_requests sr
      SET status = 'CANCELADA', resolved_at = now()
      FROM events e
      WHERE sr.event_id = e.id
        AND sr.status = 'PENDIENTE'
-       AND (e.status = 'CERRADO' OR sr.created_at < now() - make_interval(hours => $1))
+       AND (e.status = 'CERRADO' OR sr.created_at < now() - make_interval(mins => $1))
      RETURNING sr.id, sr.event_id, e.dj_id`,
-    [timeoutHours],
+    [timeoutMinutes],
   );
   return rows;
 }
@@ -119,6 +138,7 @@ module.exports = {
   eliminar,
   listarPorEvento,
   listarPorEventoYParticipante,
+  listarPorParticipante,
   resolver,
   marcarReproducida,
   cancelarSolicitudesColgadas,

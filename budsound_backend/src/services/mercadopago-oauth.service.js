@@ -68,6 +68,18 @@ async function refrescarToken(refreshToken) {
   return data;
 }
 
+// Nickname/correo de la cuenta recién conectada — se muestran en Perfil
+// para que el DJ pueda confirmar que quedó la cuenta correcta (un
+// `collector_id` numérico solo no le dice nada a simple vista).
+async function obtenerIdentidad(accessToken) {
+  const response = await fetch(`${MP_API}/users/me`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) return { nickname: null, email: null };
+  return { nickname: data.nickname ?? null, email: data.email ?? null };
+}
+
 const MARGEN_REFRESCO_MS = 5 * 60 * 1000;
 
 // Access token vigente del DJ para usar en un pago (o null si no conectó su
@@ -89,6 +101,9 @@ async function obtenerAccessTokenVigente(djId) {
       accessToken: renovado.access_token,
       refreshToken: renovado.refresh_token,
       expiraEn: new Date(Date.now() + renovado.expires_in * 1000),
+      // El refresco no cambia de cuenta — se conservan los que ya había.
+      nickname: conexion.mp_nickname,
+      email: conexion.mp_email,
     });
     return renovado.access_token;
   } catch (error) {
@@ -106,4 +121,5 @@ module.exports = {
   intercambiarCodigo,
   refrescarToken,
   obtenerAccessTokenVigente,
+  obtenerIdentidad,
 };
