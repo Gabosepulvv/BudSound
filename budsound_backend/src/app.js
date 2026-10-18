@@ -11,6 +11,16 @@ const { notFoundHandler, errorHandler } = require('./middleware/error.middleware
 function crearApp(io) {
   const app = express();
 
+  // Sin esto, Express ve la IP del proxy de Railway en TODAS las
+  // peticiones (nunca la del celular/navegador real) — el limitador de
+  // intentos de auth.routes.js (pensado por-IP) termina contando como si
+  // todo el tráfico viniera de una sola persona, y basta con unas pocas
+  // peticiones de cualquier origen para bloquear a alguien más. `1` porque
+  // Railway es un solo salto de proxy por delante de este backend.
+  if (env.nodeEnv === 'production') {
+    app.set('trust proxy', 1);
+  }
+
   app.use(helmet());
   app.use(cors({ origin: env.corsOrigin }));
   // Límite subido de 100kb (default de Express) a 4mb: tanto la foto de
