@@ -78,7 +78,7 @@ de `DATABASE_URL`, ya resuelta en el paso 3). Son las mismas de
 | `MERCADOPAGO_PUBLIC_KEY` | *(idem)* | |
 | `MERCADOPAGO_CLIENT_ID` | *(Client ID OAuth)* | Opcional — solo para el split de pagos por DJ. Dejar vacío desactiva el botón "Conectar MercadoPago" (el cobro sigue funcionando en la cuenta central). |
 | `MERCADOPAGO_CLIENT_SECRET` | *(Client Secret OAuth)* | Idem, pestaña "OAuth" de las credenciales de tu app en MercadoPago — ver CLAUDE.md. |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(ver `.env.example`)* | Opcional — solo para verificación de correo al registrarse. Vacío = el registro no exige verificar el correo (como ahora en local). |
+| `BREVO_API_KEY` / `EMAIL_SENDER` / `EMAIL_SENDER_NAME` | *(ver `.env.example`)* | Opcional — solo para verificación de correo al registrarse. Vacío = el registro no exige verificar el correo (como ahora en local). **No uses SMTP directo acá:** Railway bloquea el tráfico saliente por los puertos SMTP por completo (confirmado 2026-10-18) — por eso el correo va por la API HTTP de Brevo en vez de por `nodemailer`/Gmail. |
 | `PUBLIC_URL` | *(se completa en el paso 6)* | Tiene que ser el dominio público que Railway genera para este mismo servicio, con `https://` — hace falta primero generar el dominio (paso 6) y volver acá a pegarlo. |
 | `BUDSOUND_COMMISSION_RATE` | `0.08` | |
 | `REQUEST_TIMEOUT_MINUTES` | `7` | |

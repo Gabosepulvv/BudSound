@@ -32,20 +32,21 @@ module.exports = {
   // la app Flutter como `serverClientId` para que el idToken que genera
   // venga dirigido a esta audiencia (ver google-auth.service.js).
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
-  // SMTP para el correo de verificación al registrarse (ver email.service.js).
-  // Mientras no esté configurado, el registro no exige verificar el correo
-  // (mismo patrón que MercadoPago/Google: la app funciona igual sin
-  // credenciales, solo que sin esa capa extra).
+  // Correo de verificación al registrarse (ver email.service.js), vía la
+  // API HTTP de Brevo — no SMTP directo: Railway bloquea el tráfico
+  // saliente por los puertos SMTP (25/465/587) por completo (confirmado
+  // 2026-10-18, ver DECISIONES_TECNICAS.md), así que Gmail por SMTP nunca
+  // iba a funcionar ahí sin importar las credenciales. Mientras no esté
+  // configurado, el registro no exige verificar el correo (mismo patrón
+  // que MercadoPago/Google: la app funciona igual sin credenciales, solo
+  // que sin esa capa extra).
   // .trim() porque un espacio/tab accidental al pegar el valor en el panel
-  // de Railway (pasó con SMTP_HOST, 2026-10-18) rompe la resolución DNS del
-  // servidor SMTP de forma nada obvia — el error (`ENOTFOUND`) no deja ver
-  // que la causa es un espacio invisible al principio del valor.
-  smtp: {
-    host: (process.env.SMTP_HOST || '').trim(),
-    port: Number(process.env.SMTP_PORT) || 587,
-    user: (process.env.SMTP_USER || '').trim(),
-    pass: (process.env.SMTP_PASS || '').trim(),
-    from: (process.env.SMTP_FROM || 'BudSound <no-reply@budsound.app>').trim(),
+  // de Railway (pasó con SMTP_HOST antes de este cambio) puede romper el
+  // valor de forma nada obvia.
+  email: {
+    apiKey: (process.env.BREVO_API_KEY || '').trim(),
+    senderEmail: (process.env.EMAIL_SENDER || '').trim(),
+    senderName: (process.env.EMAIL_SENDER_NAME || 'BudSound').trim(),
   },
   // URL pública donde este backend responde (para armar el link del correo
   // de verificación) — en Railway, el dominio que genera "Networking ->

@@ -1,19 +1,31 @@
-const nodemailer = require('nodemailer');
 const env = require('../config/env');
 
-const credencialesListas = () => Boolean(env.smtp.host && env.smtp.user && env.smtp.pass);
+const credencialesListas = () => Boolean(env.email.apiKey && env.email.senderEmail);
 
-let transporter = null;
-function obtenerTransporter() {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: env.smtp.host,
-      port: env.smtp.port,
-      secure: env.smtp.port === 465,
-      auth: { user: env.smtp.user, pass: env.smtp.pass },
-    });
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
+// Vía la API HTTP de Brevo (puerto 443, nunca bloqueado) en vez de SMTP
+// directo — ver el comentario de `email` en env.js para el porqué.
+async function enviarCorreo({ to, subject, html }) {
+  const respuesta = await fetch(BREVO_API_URL, {
+    method: 'POST',
+    headers: {
+      'api-key': env.email.apiKey,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { email: env.email.senderEmail, name: env.email.senderName },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  if (!respuesta.ok) {
+    const detalle = await respuesta.text().catch(() => '');
+    throw new Error(`Brevo respondió ${respuesta.status}: ${detalle}`);
   }
-  return transporter;
 }
 
 function escapeHtml(value) {
@@ -33,8 +45,7 @@ async function enviarCorreoVerificacion({ to, nombre, verificationUrl }) {
   const nombreSeguro = escapeHtml(nombre);
   const urlSegura = escapeHtml(verificationUrl);
 
-  await obtenerTransporter().sendMail({
-    from: env.smtp.from,
+  await enviarCorreo({
     to,
     subject: 'Confirma tu correo en BudSound',
     html: `<!DOCTYPE html>
@@ -85,8 +96,7 @@ async function enviarCorreoRecuperacion({ to, nombre, resetUrl }) {
   const nombreSeguro = escapeHtml(nombre);
   const urlSegura = escapeHtml(resetUrl);
 
-  await obtenerTransporter().sendMail({
-    from: env.smtp.from,
+  await enviarCorreo({
     to,
     subject: 'Recupera tu contraseña de BudSound',
     html: `<!DOCTYPE html>
