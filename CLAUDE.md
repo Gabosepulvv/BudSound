@@ -489,6 +489,24 @@ MercadoPago):
   a mano en `%USERPROFILE%\.android\avd\` copiando la estructura de un AVD
   existente y apuntando a una imagen de sistema `x86_64` (no `x86` — las
   versiones recientes de Flutter ya no soportan emuladores de 32 bits).
+- **El pago se queda colgado en "Procesando pago..." (RESUELTO —
+  emulador con poca RAM):** el AVD `Pixel_4_API_35` venía con
+  `hw.ramSize = 2048` (2 GB) por defecto — de sobra para la mayoría de las
+  pantallas, pero no para tener Flutter en modo debug y un WebView
+  cargando el SDK de MercadoPago al mismo tiempo. El síntoma es engañoso:
+  no hay ningún error de red ni de JS, porque Android mata el proceso del
+  WebView por falta de memoria a mitad del pago (`adb logcat` muestra
+  `Renderer process crash detected` seguido de `exited due to signal 9
+  (Killed)` — señal 9 = SIGKILL del low-memory killer del sistema, no un
+  crash de la app). Se subió a `hw.ramSize = 4096` y `vm.heapSize = 512`
+  en `%USERPROFILE%\.android\avd\Pixel_4_API_35.avd\config.ini` — hace
+  falta un **cold boot** para que tome el cambio (`emulator -avd
+  Pixel_4_API_35 -no-snapshot-load`), un resume normal desde snapshot no
+  alcanza porque el snapshot guarda el estado de memoria viejo. Si vuelve
+  a pasar con otro AVD, revisar `hw.ramSize` ahí primero antes de asumir
+  que es un bug de código — ya se investigó dos veces como si fuera de
+  red (ver DECISIONES_TECNICAS.md, entradas 27) antes de encontrar esta
+  causa.
 
 ## Convenciones (ir completando a medida que el equipo decida)
 

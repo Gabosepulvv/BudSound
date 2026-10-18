@@ -683,6 +683,595 @@ datos de verdad y sin mantenimiento.
 
 ---
 
+## 26. BPM de la canción pedida, visible para el DJ: Deezer, no iTunes
+
+**Problema:** se pidió que el DJ pudiera ver el BPM de cada canción que le
+piden, para poder mezclarla sin tener que buscarlo a mano en otra app.
+Ni iTunes (Search API ni el feed RSS) expone BPM en ningún endpoint
+público.
+
+**Qué se hizo:** la API pública de Deezer sí tiene BPM, pero solo en el
+detalle de una canción (`GET /track/:id`), no en los resultados de
+`/search` — hace falta encadenar dos requests: buscar por texto
+(`"$artista $titulo"`) para obtener el `id` de Deezer, y después pedir el
+detalle de ese `id` para leer `bpm`. Se agregó `deezer.service.js` con
+`buscarBpm({titulo, artista})`, y se llama una sola vez al crear la
+solicitud (`request.controller.js` → `crear`), guardando el resultado en
+la nueva columna `song_requests.bpm` — así la cola del DJ no repite la
+consulta externa cada vez que se refresca.
+
+Dos detalles no obvios, encontrados probando contra la API real:
+- La sintaxis de filtros de Deezer (`q=track:"X" artist:"Y"` combinados)
+  devuelve 0 resultados en la práctica, aunque cada filtro funcione por
+  separado. Una búsqueda de texto simple (`q="$artista $titulo"`) sí
+  funciona, y Deezer ordena por relevancia/popularidad, así que el primer
+  resultado ya suele ser la versión original y no un remix o cover.
+- Deezer devuelve `bpm: 0` (no `null`) cuando tiene la canción pero no la
+  analizó — se trata como "desconocido" (`bpm > 0 ? bpm : null`).
+
+Es "mejor esfuerzo" de punta a punta: si Deezer no tiene la canción, no la
+analizó, o no responde a tiempo (`AbortSignal.timeout(3000)`), se guarda
+`null` y la cola del DJ simplemente no muestra el dato — nunca bloquea ni
+retrasa de forma relevante pedir una canción.
+
+**Por qué importa para la defensa:** es el mismo patrón que el feed RSS de
+iTunes (decisión 25) — usar una fuente pública gratuita en vez de
+mantener una base de datos de BPM a mano — pero con una capa extra de
+tolerancia a fallos porque acá el dato es "nice to have", no el flujo
+principal (pedir la canción nunca debe depender de que un tercero
+responda).
+
+---
+
+## 27. "Procesando pago..." colgado para siempre: cleartext bloqueado solo dentro del WebView
+
+**Problema:** en el emulador, el formulario de pago cargaba bien (Brick
+visible, se podían llenar los datos de la tarjeta), pero al tocar "Pagar"
+se quedaba colgado en "Procesando pago..." para siempre, sin ningún error
+visible ni ningún request nuevo en los logs del backend — ni siquiera uno
+rechazado.
+
+**Causa:** `mp_checkout_screen.dart` apunta al backend de desarrollo por
+HTTP plano (`http://10.0.2.2:3000`, ver `ApiConfig`). El `POST
+/pay/checkout` inicial (que pide el HTML del formulario) lo hace
+`package:http` desde Dart — y ese **no pasa por el `NetworkSecurityConfig`
+de Android**, así que funciona sin configuración extra. Pero una vez
+cargado el HTML en el WebView, el `fetch('/api/events/.../requests')` que
+dispara el Brick al tocar "Pagar" (ver `checkout.controller.js`, `onSubmit`)
+corre DENTRO del WebView — que sí es un componente nativo de Android sujeto
+al `NetworkSecurityConfig`, y desde Android 9 (API 28) el tráfico HTTP sin
+cifrar está bloqueado por defecto para cualquier `targetSdkVersion` actual.
+El `fetch` fallaba con `ERR_CLEARTEXT_NOT_PERMITTED` **antes de salir del
+dispositivo**, por eso el backend nunca veía ni loggeaba nada.
+
+**Qué se hizo:** se agregó
+`android/app/src/main/res/xml/network_security_config.xml`, referenciado
+desde `AndroidManifest.xml` (`android:networkSecurityConfig`), que permite
+cleartext **solo** para `10.0.2.2` y `localhost` (los hosts de desarrollo
+de `ApiConfig`) — no un `usesCleartextTraffic="true"` global, que dejaría
+cualquier dominio sin cifrar. En producción (`ApiConfig._usarProduccion =
+true`, Railway por HTTPS) esta excepción no aplica a nada: el dominio real
+nunca está en esa lista.
+
+**Por qué importa para la defensa:** es la misma lección que ya dejó el bug
+del `onReady` del Brick (ver riesgo 8 del CLAUDE.md) — un fallo "silencioso"
+de JavaScript dentro de un WebView no deja rastro en los logs de Flutter ni
+del backend, porque pasa en un proceso de red completamente distinto
+(Chromium del WebView, no el engine de Dart). `adb logcat` sigue siendo la
+única forma real de ver qué pasó ahí dentro.
+
+---
+
+## 28. Más opciones para el Participante: historial de propinas y eliminar cuenta
+
+**Qué se hizo:** dos agregados a Perfil, solo para Participante el primero,
+para ambos roles el segundo:
+
+- **Historial de propinas** (`GET /api/requests/mine`, sin `:eventId` —
+  distinto del `GET /events/:eventId/requests/mine` que ya existía y está
+  acotado a un solo evento): `requestModel.listarPorParticipante` hace
+  JOIN con `events` para traer el nombre/código del evento de cada
+  solicitud pasada, ordenado por fecha descendente. Nueva pantalla
+  `ParticipantHistoryScreen`, con un resumen (canciones pedidas / total
+  aportado en propinas aceptadas) arriba de la lista.
+- **Eliminar cuenta** (`DELETE /api/auth/me`): si la cuenta tiene
+  contraseña (no se creó con Google — ver `password_hash` en schema.sql),
+  la vuelve a pedir antes de borrar nada; una cuenta de Google no tiene
+  contraseña propia, así que ahí la sesión ya autenticada es la única
+  confirmación posible. El borrado se apoya en los `ON DELETE CASCADE` que
+  ya existían en `schema.sql` (`events.dj_id`, `song_requests.participante_id`,
+  `transactions.request_id`) — no hace falta borrar nada a mano en el
+  controller, Postgres deja todo consistente solo. Para un DJ, esto
+  también borra sus eventos pasados (y con ellos las solicitudes/
+  transacciones de esos eventos): es la contrapartida esperada de
+  "eliminar cuenta", no un efecto secundario raro.
+
+**Por qué importa para la defensa:** "eliminar cuenta" es el típico
+requisito que se da por sentado pero nadie construye hasta que alguien
+pregunta "¿y si un usuario quiere borrarse?" — queda como ejemplo de
+cómo el modelo relacional con cascadas bien pensadas desde el principio
+(ver riesgos del CLAUDE.md) hace que una función aparentemente grande
+(borrar una cuenta y todo lo que depende de ella) sea en la práctica un
+`DELETE FROM users WHERE id = $1` de una sola línea.
+
+---
+
+## 29. Géneros del evento: lista fija validada en el backend, no texto libre
+
+**Qué se hizo:** al crear un evento, el DJ ahora elige (chips de
+selección múltiple, mínimo 1) los géneros que van a sonar. Se guardan en
+`events.generos` (`TEXT[]` en Postgres) y se muestran de vuelta al DJ (en
+la lista de eventos y en la cola) y al Participante (en la tarjeta
+"ESTÁS AQUÍ" antes de pedir una canción, para que sepa qué esperar).
+
+Se eligió una lista fija (`GENEROS_VALIDOS` en `event.controller.js`,
+duplicada como `_generosDisponibles` en `dj_events_screen.dart` — deben
+quedar iguales) en vez de texto libre: el backend rechaza cualquier
+género que no esté en esa lista (`400`). Es la misma lógica que ya se usa
+para los montos de propina (múltiplos de $50, rango fijo) — una lista
+fija es más fácil de mostrar como chips seleccionables, evita que cada DJ
+escriba el mismo género de 5 formas distintas ("reggaeton", "Reggaetón",
+"REGGAETON"), y deja la puerta abierta a filtrar eventos por género más
+adelante si hace falta.
+
+**Por qué importa para la defensa:** es deliberadamente informativo, no
+restrictivo — elegir "Rock" no bloquea que alguien pida una canción de
+otro género; la búsqueda de canciones (iTunes) sigue siendo libre. Mezclar
+ambas cosas (restringir qué se puede pedir según el género declarado)
+hubiera sido un acoplamiento innecesario para lo que se pidió.
+
+---
+
+## 30. Buscador de canciones acotado al género del evento (y por qué no hay filtro de idioma)
+
+**Problema:** se pidió que los participantes de un evento solo vean, en su
+buscador de canciones, resultados de los géneros que el DJ declaró al
+crear el evento (ver decisión 29) — y de paso, si era posible armar
+"temáticas" predefinidas tipo "solo música en inglés" o "solo géneros
+latinos".
+
+**Qué se investigó primero (importante para la defensa):** se probó a
+mano contra la API real de iTunes antes de construir nada, porque el
+comportamiento documentado no coincide con el real:
+- El parámetro `genreId` de la **Search API** (`/search?term=...`) se
+  probó con y sin él, mismo término, géneros distintos — **los resultados
+  son idénticos**. La Search API lo ignora por completo en cuanto hay un
+  `term` (que es obligatorio). No hay forma de pedirle a iTunes que
+  filtre la búsqueda libre por género en el pedido mismo.
+- El feed RSS de **Top Songs** (`/rss/topsongs/.../genre=X/json`), en
+  cambio, **sí filtra de verdad** — se probó con varios `genre=X` y cada
+  uno devuelve canciones genuinamente de ese género.
+- **No existe ningún parámetro de idioma** en ninguna de las dos APIs. Por
+  eso la temática "solo en inglés" no se implementó — hacerlo con una
+  heurística (ej. country=US) habría dado resultados engañosos (mezcla de
+  idiomas igual) en vez de simplemente no tener la función.
+
+**Qué se hizo, con esa limitación real en mente:**
+- **"Populares" (sin buscar):** filtro real, vía el feed RSS con
+  `genre=X`. Si el evento declaró varios géneros que mapean a distintos
+  `genreId` de iTunes, se piden varios feeds en paralelo y se intercalan
+  (ver `topCancionesPorGeneros` en itunes.service.js).
+- **Búsqueda libre (mientras la persona escribe):** filtro "mejor
+  esfuerzo" hecho DESPUÉS de recibir los resultados — se pide de más
+  (`limit * 4`) y se descarta lo que no coincide con el campo
+  `primaryGenreName` que la Search API sí devuelve por canción (ver
+  `buscarCancionesPorGeneros`). Nunca deja a alguien sin poder pedir una
+  canción: si el filtrado deja la lista vacía, el mensaje se lo dice
+  explícitamente en vez de mostrar una pantalla en blanco sin explicación.
+- **Mapeo género BudSound → género iTunes:** aproximado, no una
+  equivalencia exacta (`GENERO_A_ITUNES` en itunes.service.js) — por
+  ejemplo, "Reggaetón", "Cumbia", "Salsa" y "Bachata" caen todos dentro
+  del género amplio "Latin" de iTunes, que no los distingue entre sí.
+- **Temáticas predefinidas:** no son géneros nuevos ni tocan el backend —
+  son combos de un toque sobre los mismos `GENEROS_VALIDOS` ya existentes
+  (`_temasPredefinidos` en `dj_events_screen.dart`, ej. "Solo géneros
+  latinos" = Reggaetón+Cumbia+Salsa+Bachata).
+
+**Por qué importa para la defensa:** mismo patrón que el riesgo de BPM
+(decisión 26) — cuando se usa una API de terceros, probarla a mano antes
+de construir sobre lo que *dice* la documentación que hace, porque acá
+habría sido fácil escribir código contra un parámetro (`genreId` en
+Search) que en la práctica no hace nada.
+
+---
+
+## 31. "Procesando pago..." colgado para siempre (round 2): el `fetch()` del WebView, no la red
+
+**Problema:** después de arreglar el cleartext (decisión 27) y la RAM del
+emulador, el pago seguía colgado — con el agravante de que ahora ni
+siquiera había un crash o un timeout que lo explicara.
+
+**Cómo se investigó (importante para la defensa — probar en capas, de
+afuera hacia adentro):**
+1. Se instrumentó `checkout.controller.js` con un timeout explícito de
+   20s (`AbortController`) y un panel de texto en la propia página
+   (`diag()`) que muestra cada paso: "Script cargado" → "Brick listo" →
+   "onSubmit disparado" → "Llamando a /api/..." → (nunca llegaba más
+   lejos, ni con éxito ni con error, ni siquiera tras los 20s del
+   timeout).
+2. Se probó el endpoint real (`POST /events/:id/requests`) directo por
+   `curl`, con el mismo token y el mismo body que manda la página —
+   **respondió en ~1 segundo**. El backend nunca fue el problema.
+3. Conclusión: el `fetch()` de DENTRO del WebView hacia nuestro propio
+   backend (`http://10.0.2.2:3000`, cleartext) se cuelga de forma
+   silenciosa en esta versión de Chromium WebView embebido — ni error de
+   red, ni el `AbortController` lo destraba. Es un problema específico de
+   esa combinación (WebView + fetch + cleartext + este Android/Chromium),
+   no de nuestro código de red en sí.
+
+**Qué se hizo:** se sacó esa llamada del WebView por completo. Ahora:
+- La página (`checkout.controller.js`) solo tokeniza la tarjeta con el
+  Card Payment Brick y le pasa el token a Flutter por el canal
+  `BudSoundCheckout` (`onSubmit` ya no hace `fetch`, solo
+  `postMessage` + `resolve()`).
+- `McpCheckoutScreen` (`mp_checkout_screen.dart`) es quien hace el
+  `POST /events/:id/requests` de verdad, con `package:http` — el mismo
+  cliente que **ya** se usaba sin problemas para pedir el HTML de la
+  página (`_iniciar()`) y que nunca mostró este síntoma en ningún punto
+  de esta sesión.
+- La página recibe el resultado de vuelta con
+  `window.budsoundResultado(ok, mensaje)` (Flutter llama a
+  `controller.runJavaScript(...)`), así la persona sigue viendo "Listo."
+  o el error en la misma pantalla, en vez de quedar en blanco.
+- El token de checkout acotado (`emitirTokenCheckout`, 15 min, ver riesgo
+  "revisión de seguridad" en CLAUDE.md) se mantiene — ahora lo usa
+  directamente `McpCheckoutScreen` para autenticar su propio POST
+  (`ApiClient.post(..., tokenPropio: ...)`), en vez de pasárselo a la
+  página para que lo use en su `fetch()`. El WebView ya no recibe NINGÚN
+  token de BudSound.
+
+**Hallazgo aparte (no relacionado, pero se encontró al probar):** las
+credenciales de MercadoPago en `.env` son de **producción**
+(`MERCADOPAGO_ACCESS_TOKEN` empieza con `APP_USR-`), no de sandbox
+(`TEST-...`). Por eso, aunque el cuelgue ya esté resuelto, pagar con una
+tarjeta de prueba publicada (ej. `5416 7526 0258 2580` / titular `APRO`)
+va a seguir fallando con `"Unauthorized use of live credentials"` — es
+esperado, MercadoPago no deja usar tarjetas de prueba con credenciales
+reales. Para probar el flujo completo hace falta reemplazar
+`MERCADOPAGO_ACCESS_TOKEN`/`MERCADOPAGO_PUBLIC_KEY` en `.env` por las de
+la pestaña **Credenciales de prueba** del panel de MercadoPago (no las de
+producción que ya se usaron) — ver `.env.example`, que ya documentaba
+esto correctamente con el prefijo `TEST-`.
+
+**Por qué importa para la defensa:** cuando un `fetch()` dentro de un
+WebView se comporta distinto que el mismo request hecho por Dart o por
+`curl`, el problema casi nunca es "la red" — es el WebView como
+plataforma. Mover la llamada de red fuera del WebView (dejándolo solo
+para lo que un WebView tiene que hacer sí o sí: cargar el SDK de un
+tercero y tokenizar datos sensibles) es más robusto que seguir
+depurando un `fetch()` que, al día de hoy, no se pudo explicar por qué
+se cuelga exactamente — y no hacía falta explicarlo del todo para
+sacarlo de la ecuación.
+
+---
+
+## 32. La causa real del cuelgue: `onSubmit` del Brick mal desestructurado
+
+**Esto corrige/completa la decisión 31.** Después de mover el POST del
+WebView a Flutter (decisión 31), el pago seguía sin funcionar — pero esta
+vez con una pista real en el panel de diagnóstico:
+`unhandledrejection: Cannot read properties of undefined (reading 'token')`.
+
+**La causa real, encontrada recién acá:** `checkout.controller.js` tenía
+`onSubmit: ({ formData }) => ...` — pero el Card Payment Brick llama a
+`onSubmit` pasando los datos de la tarjeta **directo como el argumento**,
+no envueltos en `{ formData: ... }`. Desestructurar `{ formData }` de ahí
+dejaba `formData` en `undefined`, y la primera línea que lo tocaba
+(`formData.token`) tiraba esa excepción — **antes de llegar a intentar
+nada de red**. Se corrigió a `onSubmit: (formData) => ...` (sin
+desestructurar).
+
+Esto probablemente era la causa real del "Procesando pago..." colgado
+desde el principio de toda esta sesión de depuración — no el cleartext
+(decisión 27), no la RAM del emulador, no el `fetch()` del WebView
+(decisión 31). Esos tres eran problemas reales que valía la pena
+arreglar igual, pero ninguno era la razón de que esto nunca funcionara:
+el código nunca llegaba tan lejos como para toparse con ellos, porque se
+caía antes, en una línea que ni siquiera hacía una llamada de red.
+
+**Por qué importa para la defensa (la lección más importante de toda esta
+sesión):** un error de JS atrapado silenciosamente por el propio Brick
+(sin pasar por nuestro `onError`, porque pasó DENTRO de la promesa de
+`onSubmit`, no al inicializar el Brick) puede producir un síntoma
+idéntico a un cuelgue de red real — mismo "se queda pegado para
+siempre", mismo "no hay ningún log en el backend". Sin el panel de
+diagnóstico en pantalla (que loggea cada paso Y cualquier
+`unhandledrejection`), esto podría haber quedado sin resolverse
+indefinidamente, porque cada pista externa (RAM, cleartext, timing)
+apuntaba hacia "problema de red" y ninguna apuntaba hacia "la forma del
+argumento está mal". La lección: cuando algo "se cuelga" sin ningún
+error, agregar instrumentación que capture errores no manejados
+(`window.addEventListener('unhandledrejection', ...)`) antes de seguir
+adivinando por capas de infraestructura (RAM, red, timeouts).
+
+---
+
+## 33. QR en una TV/tablet del local: una página pública, no una función de la app
+
+**Problema:** se pidió una forma de mostrar el QR del evento en una
+pantalla grande del local (TV, tablet en la entrada), no solo en el
+celular del DJ.
+
+**Qué se hizo:** `GET /display/:code` (`display.controller.js`) — una
+página HTML pública, **sin login**, con el QR gigante, el nombre del
+evento y el código en texto grande, pensada para quedar abierta en un
+navegador y no tocarse más. Se accede desde la cola del DJ con el botón
+"Mostrar en pantalla grande" (abre el link en el navegador del celular —
+desde ahí se puede castear/espejar a una TV) o mandando el mismo link por
+"Compartir código" para abrirlo directo en una tablet del local.
+
+Decisiones de diseño, ambas para que funcione bien en un local real:
+- El QR se genera como **SVG incrustado en el propio HTML** (paquete
+  `qrcode`, server-side), no como imagen externa ni librería por CDN — la
+  página no depende de que el local tenga internet de verdad, solo de
+  llegar a este backend por la red local (igual que el resto de la app).
+- **Sin autenticación**, a propósito: el código del evento ya es público
+  por diseño (alcanza con verlo, escaneado o a mano, para unirse) — una
+  TV en la entrada de un local no tiene cómo iniciar sesión, y exigirlo
+  no agregaría ninguna seguridad real sobre lo que ese código ya permite.
+- El tamaño del QR y del texto usa `clamp()` con unidades de viewport
+  (`vw`/`vh`) en vez de un tamaño fijo, para que se vea bien tanto en una
+  tablet como en una TV grande sin tener que detectar el dispositivo.
+
+**Limitación conocida (entorno de desarrollo, no de la función en sí):**
+en local, `ApiConfig` apunta a `10.0.2.2` (el emulador Android) o
+`localhost` — ninguno de los dos es alcanzable desde una TV o tablet
+*física* en la misma red WiFi. Para probar esto con un dispositivo real
+hace falta la IP LAN de la máquina que corre el backend (ej.
+`192.168.1.X:3000`) en vez de `localhost`. En producción (Railway
+desplegado) esto no aplica — el dominio público ya es alcanzable desde
+cualquier dispositivo.
+
+---
+
+## 34. Un DJ, un evento activo a la vez
+
+**Qué se hizo:** `POST /api/events` ahora rechaza (409) crear un evento
+nuevo si el DJ ya tiene uno `ACTIVO` (`eventModel.buscarActivoPorDj`,
+`event.controller.js`). Del lado de la app, el botón "Crear evento" se
+reemplaza por una tarjeta con acceso directo al evento activo en vez de
+dejar que la persona lo intente y recién ahí se entere con un error.
+
+**Por qué:** evita que alguien abra un evento nuevo por error (o desde
+otro dispositivo con la misma cuenta) mientras el de verdad sigue
+recibiendo solicitudes en otra pantalla — plata y solicitudes quedarían
+repartidas entre dos eventos sin que nadie lo note de inmediato.
+
+## 35. Nombre artístico editable, con condiciones (decisión del equipo)
+
+**Qué se hizo:** el DJ puede cambiar su nombre artístico desde Perfil,
+pero con dos condiciones combinadas (elegidas por el equipo entre varias
+opciones):
+- **Nunca con un evento activo** — evita que cambie de identidad a mitad
+  de una transmisión en vivo mientras el QR ya está circulando con el
+  nombre viejo.
+- **Máximo 1 cambio cada 30 días** — mismo patrón que cambiar el nombre
+  de usuario en redes sociales; evita que lo cambie seguido y confunda a
+  participantes que ya lo conocen de eventos anteriores.
+
+Ambas se validan en el backend (`auth.controller.js`,
+`actualizarPerfil` — fuente de verdad) con una columna nueva,
+`users.nombre_artistico_cambiado_at`. El cooldown de 30 días también se
+calcula del lado de Flutter (ya viene en la sesión) para mostrar el
+aviso sin pedirle nada al backend; la condición de "sin evento activo"
+no se duplica en el cliente (no vale la pena pedir la lista de eventos
+solo para eso) — si intenta cambiarlo igual, el error del backend se
+muestra tal cual.
+
+---
+
+## 36. `Image.network` sin timeout colgó toda la app, no solo una carátula
+
+**Problema:** al agregar carátulas a la cola del DJ (decisión de la
+sesión anterior) y cargar canciones de prueba con URLs de verdad de
+iTunes, la app completa dejó de responder a cualquier toque — no solo la
+pantalla de la cola, **toda** la app, incluyendo cambiar de pestaña desde
+Inicio. `adb logcat` mostró el tiempo de un solo frame subiendo de ~12s a
+~67s (`EGL_emulation: app_time_stats`), con el proceso de la app vivo
+pero el motor de Flutter completamente bloqueado — y la CPU del emulador
+en 0% (no estaba la máquina sobrecargada, era un bloqueo real, no falta
+de recursos).
+
+**Causa:** `Image.network` usa por debajo el `HttpClient` de `dart:io`,
+que **no tiene ningún timeout por defecto**. Si una sola URL nunca
+responde (DNS que no resuelve, conexión que nunca cierra), esa carga de
+imagen se queda colgada para siempre — y según se vio acá, eso puede
+bloquear el motor de Flutter entero, no solo el widget de esa imagen en
+particular.
+
+**Qué se hizo (primer intento):** `widgets/network_artwork.dart` — un
+widget nuevo que reemplazaba `Image.network` en los dos lugares donde se
+usaba (cola del DJ y resultados de búsqueda del Participante). Pedía los
+bytes con `package:http` y `.timeout(Duration(seconds: 6))` antes de
+mostrar nada con `Image.memory`; si se vencía el timeout o fallaba,
+mostraba el ícono de respaldo de siempre, sin arriesgar el resto de la
+app.
+
+**Revertido — decisión del equipo:** después de aplicar el fix, el
+celular de prueba seguía sin responder. La causa más probable es que el
+proceso ya estaba en el deadlock original (de antes del fix) y un
+hot-reload no alcanza para recuperar un isolate ya colgado — hacía falta
+matar el proceso entero (`adb shell am force-stop`) y recién ahí probar
+de nuevo, paso que no se hizo a tiempo. En vez de seguir iterando sobre
+esa teoría, se optó por sacar la función de carátulas por completo (no
+solo protegerla con timeout): se borró `network_artwork.dart`, la cola
+del DJ quedó sin ninguna miniatura de canción, y la búsqueda del
+Participante volvió a su `Image.network` original (el mismo que ya tenía
+antes de este incidente, sin tocar). **Riesgo aceptado, no resuelto:** la
+búsqueda del Participante sigue usando `Image.network` sin timeout para
+la carátula de cada resultado — el mismo patrón que causó el cuelgue,
+solo que en un lugar que ya existía antes de este incidente y que nunca
+dio problemas en la práctica. Si vuelve a congelarse la app durante una
+búsqueda, revisar ahí primero antes de asumir que es un bug nuevo.
+
+**Por qué importa para la defensa:** la causa real era muy fácil de
+confundir con "el emulador está lento" o "problema de memoria" (ver
+decisión 27, el bug de RAM anterior) — la señal que lo distinguió fue
+revisar la CPU real del proceso del emulador en el host (0%, nada
+sobrecargado) mientras el tiempo de frame de la app seguía subiendo: eso
+apunta a un bloqueo genuino (esperando algo que nunca responde), no a
+falta de recursos. Cualquier `Image.network`/`NetworkImage` sin timeout
+en el código es un riesgo del mismo tipo — no son solo las carátulas de
+canciones, aplica a cualquier imagen que venga de una URL externa.
+
+---
+
+## 37. Lista de eventos del DJ: historial agrupado y vista previa de solicitudes
+
+**Qué se hizo:** en `DjEventsScreen`, la lista de eventos del DJ separa
+los activos (como mucho uno, por la decisión 34) de los cerrados, y estos
+últimos quedan bajo un encabezado colapsado visualmente "Historial (N)" en
+vez de mezclados en una sola lista plana — con eventos de prueba y de
+verdad acumulándose sprint a sprint, una lista plana se vuelve ilegible
+rápido. Además, la tarjeta del evento activo muestra una vista previa de
+hasta 3 solicitudes pendientes ("Llegando ahora") directo ahí, sin tener
+que entrar a "Ver cola en vivo" para saber si hay algo nuevo.
+
+**Por qué es "mejor esfuerzo":** la vista previa usa un `FutureBuilder`
+que pide `RequestService.listarPorEvento` una vez por cada build de la
+tarjeta — no hay un socket abierto en esta pantalla (la lista de eventos
+no es la cola en vivo). Si llega una solicitud nueva, no aparece sola:
+se actualiza la próxima vez que la lista se reconstruya (pull-to-refresh,
+o volver a esta pestaña). Para algo en tiempo real de verdad está
+`DjQueueScreen`, a un toque de distancia — esta vista previa es solo para
+decidir de un vistazo si vale la pena entrar.
+
+## 38. Temporizador de set del DJ: por qué vive en un singleton y no en la pantalla
+
+**Qué se hizo:** el DJ puede configurar un temporizador (duraciones
+rápidas: 15 min a 3 h) para controlar cuánto lleva tocando, con
+pausa/reanudar y cuenta regresiva en vivo. El estado (duración, pausado,
+tiempo restante) vive en `DjTimerService`, un singleton (`services/
+dj_timer_service.dart`), no en el `State` de `DjQueueScreen`.
+
+**Por qué:** la primera versión guardaba el temporizador en campos
+locales de `_DjQueueScreenState` — funcionaba mientras el DJ se quedara
+en esa pantalla, pero se reiniciaba apenas salía (ej. a revisar Perfil) y
+volvía, porque `dispose()` destruye esos campos junto con el widget. Un
+temporizador que se reinicia solo por cambiar de pestaña no sirve para su
+propósito (controlar cuánto lleva tocando *en la noche*, no en esta
+pantalla en particular). Moverlo a un singleton lo desacopla del ciclo de
+vida de cualquier pantalla puntual.
+
+**Detalle de diseño:** el tiempo restante se calcula contra una hora de
+término real (`DateTime.now().add(duracion)`), no restando segundo a
+segundo con un contador — así, si la UI deja de refrescarse un rato
+(pantalla bloqueada, la pantalla que lo muestra no está montada), el
+cálculo sigue siendo correcto al volver a leerlo, en vez de haberse
+quedado pausado de hecho sin que nadie lo pidiera. Sigue siendo
+**puramente local al dispositivo**, igual que antes: no se guarda en
+disco ni se manda al backend, así que un cierre completo de la app sí lo
+reinicia (aceptado — es una ayuda de pulso para la sesión actual, no un
+dato del evento).
+
+## 39. Vista previa del temporizador en "Inicio" y "En vivo": un widget con su propio tick
+
+**Qué se hizo:** `widgets/dj_timer_chip.dart` — una versión compacta del
+temporizador (ícono + cuenta regresiva, o nada si no hay uno activo) que
+se insertó en el dashboard de "Inicio" y en la tarjeta del evento activo
+de "En vivo", para que el DJ pueda seguir monitoreando cuánto lleva
+tocando sin tener que entrar a la cola del evento.
+
+**Por qué es un widget `Stateful` con su propio `Timer.periodic`, en vez
+de pasarle el estado desde el padre:** ambas pantallas (`InicioScreen`,
+`DjEventsScreen`) ya tienen su propio ciclo de carga (`FutureBuilder`,
+`RefreshIndicator`) y no tenían ninguna razón previa para refrescarse una
+vez por segundo. En vez de meterles un `Timer` a cada una solo para esto,
+el chip se refresca a sí mismo leyendo `DjTimerService.instance` cada
+segundo — cualquier pantalla puede usarlo con solo `const DjTimerChip()`,
+sin cablear nada adicional, y si `DjTimerService` no tiene un
+temporizador activo, el widget no ocupa espacio (`SizedBox.shrink()`).
+
+## 40. Límite del filtro de género: iTunes no distingue Reggaetón de Salsa/Bachata/Cumbia
+
+**Problema detectado:** un evento configurado solo con los géneros Salsa,
+Bachata y Cumbia puede igual mostrar "Gasolina" de Daddy Yankee
+(Reggaetón) en el buscador de canciones.
+
+**Causa:** el filtro por género de la búsqueda libre (`buscarCancionesPorGeneros`,
+`itunes.service.js`) funciona recortando DESPUÉS de recibir resultados,
+revisando si el `primaryGenreName` que devuelve iTunes contiene alguno de
+los nombres mapeados (ver decisión 30). El problema de fondo no es el
+filtro en sí: es que **iTunes no tiene una categoría propia para
+"Reggaetón"** — en su taxonomía, Reggaetón, Salsa, Bachata y Cumbia caen
+todos bajo el mismo género amplio `"Latin"` (`GENERO_A_ITUNES` ya lo
+documentaba así desde la decisión 30, pero no se había probado un caso
+concreto hasta ahora). Como Salsa/Bachata buscan justo `"latin"` en el
+nombre del género, cualquier canción de Reggaetón con esa misma etiqueta
+pasa el filtro igual.
+
+**No tiene arreglo real con la API gratuita actual:** la Search API de
+iTunes no expone ningún subgénero más fino que "Latin" para esto — no es
+un bug de filtrado, es un límite de qué datos entrega la fuente. Una
+lista manual de artistas/términos de Reggaetón para excluir a mano sería
+frágil (hay que mantenerla, y cualquier canción nueva o colaboración se
+cuela). **Queda como limitación conocida, no resuelta:** el filtro de
+género de la búsqueda libre es "mejor esfuerzo" y puede dejar pasar
+canciones de géneros parecidos pero no declarados por el DJ, sobre todo
+dentro del bloque "Latin". El DJ sigue siendo quien decide si acepta o
+rechaza cada solicitud, así que esto no rompe el control artístico — solo
+hace que el buscador no sea 100% preciso filtrando por género.
+
+---
+
+## 41. El temporizador "heredaba" el evento anterior: faltaba guardar a quién pertenece
+
+**Problema:** el DJ cerraba un evento con el temporizador corriendo,
+creaba uno nuevo, y el evento nuevo arrancaba con la cuenta regresiva del
+anterior ya corriendo (o ya en cero).
+
+**Causa:** `DjTimerService` (decisión 38) guardaba el temporizador en un
+singleton para que sobreviviera a salir y volver a `DjQueueScreen` — pero
+no guardaba a qué evento pertenecía, solo "hay un temporizador activo, sí
+o no". Como el singleton no se reinicia solo al crear un evento nuevo
+(¿por qué habría de hacerlo? nadie le avisa), cualquier pantalla que
+preguntara "¿hay un temporizador activo?" recibía que sí, sin importar de
+qué evento se tratara.
+
+**Qué se hizo:** `DjTimerService` ahora guarda también el `eventoId` del
+temporizador activo, y expone `activoPara(eventoId)` en vez de un simple
+getter `activo` — cualquier pantalla que lo muestre (`DjQueueScreen`,
+`DjTimerChip` en Inicio y En vivo) tiene que preguntar por el evento que
+está mirando, no por el estado interno sin filtrar. Como un DJ no puede
+tener dos eventos activos a la vez (decisión 34), sigue sin hacer falta
+guardar un temporizador por evento — alcanza con que el que ya existe
+"deje de aplicar" en cuanto se le pregunta por un evento distinto.
+
+## 42. Imagen de evento: mismo patrón que la foto de perfil, sin bloquear nada
+
+**Qué se hizo:** el DJ puede ponerle una imagen a un evento — al crearlo
+(selector opcional en el diálogo de "Nuevo evento") o después, en
+cualquier momento, tocando la imagen/código QR dentro de `DjQueueScreen`.
+Se ve como miniatura en la lista de "En vivo" (`DjEventsScreen`, activos e
+historial) y como banner grande en la cola del evento.
+
+**Por qué el mismo patrón que `avatar_data_url` (decisión 11):** se guarda
+como data URL (`data:image/...;base64,...`) directo en la fila de
+`events` (columna `imagen_data_url`), no como archivo en disco — Railway
+(free tier) tiene filesystem efímero, así que un archivo subido se
+perdería en el próximo redeploy. Se extrajo a un helper compartido
+(`utils/image_data_url.dart`) la detección de MIME por los primeros bytes
+y la decodificación a `ImageProvider`, que antes solo existía duplicada
+dentro de `profile_screen.dart` — ahora la usan ambos.
+
+**Por qué no se bloquea con ninguna condición (a diferencia del nombre
+artístico, decisión 35):** cambiarla o quitarla no confunde a nadie que
+ya se unió — es solo una imagen de referencia, no una identidad. Se puede
+tocar con el evento activo o ya cerrado, sin ningún cooldown.
+
+**Detalle que costó encontrarlo:** el límite de tamaño de imagen
+(`IMAGEN_EVENTO_MAX_LENGTH`, 3.5MB en base64) quedó por encima del límite
+global del body parser de Express (`express.json({ limit: '3mb' })`,
+puesto originalmente solo pensando en la foto de perfil de 2.8MB). Con
+eso, una imagen de evento grande nunca llegaba a la validación propia del
+controlador — Express la rechazaba antes, con un 413 genérico en vez del
+mensaje claro de "imagen muy pesada". Se subió el límite global a 4mb
+(con margen para el resto del body). Moraleja para la próxima vez que se
+suba un límite de tamaño de archivo: revisar también el límite del body
+parser global, no solo el límite propio del campo.
+
+---
+
 _Última actualización: se va completando a medida que aparecen más
 decisiones de este tipo. Si el equipo agrega algo parecido, vale la pena
 sumarlo acá con el mismo formato._
