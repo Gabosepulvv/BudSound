@@ -127,4 +127,14 @@ class RequestService {
     return TransactionModel.fromJson(
         data['transaction'] as Map<String, dynamic>);
   }
+
+  /// true si el backend tiene credenciales reales de MercadoPago cargadas
+  /// (ver `GET /api/payment-mode` y `mercadopago.service.js`,
+  /// `credencialesListas`). Mientras sea false (ej. el build de demo para
+  /// la primera APK), `ParticipantEventScreen` salta el Card Payment Brick
+  /// y confirma una propina simulada en vez de abrir `McpCheckoutScreen`.
+  Future<bool> pagoRealActivo() async {
+    final data = await _api.get('/payment-mode');
+    return data['pagoReal'] as bool? ?? false;
+  }
 }

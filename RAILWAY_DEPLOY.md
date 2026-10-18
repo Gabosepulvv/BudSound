@@ -5,9 +5,10 @@ datos PostgreSQL administrada. La app Flutter no se despliega en Railway —
 se sigue compilando como APK/instalable y se distribuye aparte; lo único
 que cambia en ella es la URL a la que apunta (último paso de esta guía).
 
-Railway tiene una capa gratuita (créditos limitados al mes), suficiente
-para el demo/defensa del proyecto. No hace falta tarjeta para el plan
-gratuito, aunque Railway puede pedir verificar la cuenta.
+Railway ya no tiene un plan gratis de verdad: el más barato es el plan
+"Pasatiempo" (Hobby), $5 USD/mes de uso mínimo. Para este proyecto (una
+API chica + Postgres pequeño, sin tráfico real salvo pruebas y la
+demo/defensa) sobra de lejos — nunca se acerca a los límites de ese plan.
 
 ## 0. Antes de empezar
 
@@ -75,9 +76,13 @@ de `DATABASE_URL`, ya resuelta en el paso 3). Son las mismas de
 | `GOOGLE_CLIENT_ID` | *(el Client ID "Web" de Google Cloud Console)* | Ver sección "Login con Google — setup pendiente" en `CLAUDE.md`. Si todavía no lo tienen, dejar vacío — el login con Google queda inactivo pero el resto de la app funciona igual. |
 | `MERCADOPAGO_ACCESS_TOKEN` | *(token de sandbox o producción)* | Dejar el placeholder de `.env.example` mientras no tengan credenciales reales. |
 | `MERCADOPAGO_PUBLIC_KEY` | *(idem)* | |
+| `MERCADOPAGO_CLIENT_ID` | *(Client ID OAuth)* | Opcional — solo para el split de pagos por DJ. Dejar vacío desactiva el botón "Conectar MercadoPago" (el cobro sigue funcionando en la cuenta central). |
+| `MERCADOPAGO_CLIENT_SECRET` | *(Client Secret OAuth)* | Idem, pestaña "OAuth" de las credenciales de tu app en MercadoPago — ver CLAUDE.md. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | *(ver `.env.example`)* | Opcional — solo para verificación de correo al registrarse. Vacío = el registro no exige verificar el correo (como ahora en local). |
+| `PUBLIC_URL` | *(se completa en el paso 6)* | Tiene que ser el dominio público que Railway genera para este mismo servicio, con `https://` — hace falta primero generar el dominio (paso 6) y volver acá a pegarlo. |
 | `BUDSOUND_COMMISSION_RATE` | `0.08` | |
-| `REQUEST_TIMEOUT_HOURS` | `6` | |
-| `CLEANUP_INTERVAL_MINUTES` | `15` | |
+| `REQUEST_TIMEOUT_MINUTES` | `7` | |
+| `CLEANUP_INTERVAL_MINUTES` | `1` | |
 
 `PORT` **no** se agrega a mano — Railway la inyecta solo y el backend ya
 la lee (`env.js` → `process.env.PORT`).

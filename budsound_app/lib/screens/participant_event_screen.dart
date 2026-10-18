@@ -6,6 +6,7 @@ import '../models/event_model.dart';
 import '../models/itunes_track.dart';
 import '../models/pending_song_request.dart';
 import '../models/song_request_model.dart';
+import '../services/api_client.dart';
 import '../services/event_socket.dart';
 import '../services/pending_requests_store.dart';
 import '../services/request_service.dart';
@@ -145,26 +146,49 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     if (eleccion == null) return;
     final (monto, terminosAceptados) = eleccion;
 
-    // La propina es obligatoria (ver _elegirMonto): el pago se autoriza en
-    // el checkout de MercadoPago antes de que la solicitud exista — es esa
-    // pantalla la que llama a crear la solicitud una vez que la tarjeta
-    // quedó tokenizada (ver McpCheckoutScreen y CLAUDE.md, riesgo
-    // "Autorización de pago vs. captura").
+    // Mientras el backend no tenga credenciales reales de MercadoPago (ej.
+    // el build de demo para la primera APK), se salta el Card Payment
+    // Brick por completo y se confirma una propina simulada — ver
+    // RequestService.pagoRealActivo. Si falla la consulta, se asume que
+    // SÍ hay pago real (más seguro: nunca queremos saltarnos un cobro de
+    // verdad por un error de red puntual).
+    bool pagoReal;
+    try {
+      pagoReal = await _requestService.pagoRealActivo();
+    } catch (_) {
+      pagoReal = true;
+    }
     if (!mounted) return;
-    final pagada = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => McpCheckoutScreen(
-          eventId: widget.evento.id,
-          itunesTrackId: pista.trackId,
-          titulo: pista.trackName,
-          artista: pista.artistName,
-          artworkUrl: pista.artworkUrl,
-          montoClp: monto,
-          terminosAceptados: terminosAceptados,
-        ),
-      ),
-    );
-    if (pagada != true) return;
+
+    bool pagada;
+    if (pagoReal) {
+      // La propina es obligatoria (ver _elegirMonto): el pago se autoriza en
+      // el checkout de MercadoPago antes de que la solicitud exista — es esa
+      // pantalla la que llama a crear la solicitud una vez que la tarjeta
+      // quedó tokenizada (ver McpCheckoutScreen y CLAUDE.md, riesgo
+      // "Autorización de pago vs. captura").
+      pagada = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => McpCheckoutScreen(
+                eventId: widget.evento.id,
+                itunesTrackId: pista.trackId,
+                titulo: pista.trackName,
+                artista: pista.artistName,
+                artworkUrl: pista.artworkUrl,
+                montoClp: monto,
+                terminosAceptados: terminosAceptados,
+              ),
+            ),
+          ) ??
+          false;
+    } else {
+      pagada = await _confirmarPagoSimulado(
+        pista: pista,
+        montoClp: monto,
+        terminosAceptados: terminosAceptados,
+      );
+    }
+    if (!pagada) return;
     await _cargarMisSolicitudes();
     if (!mounted) return;
     _tabController.animateTo(1);
@@ -173,6 +197,75 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
           content: const Text('Solicitud enviada al DJ'),
           backgroundColor: AppColors.limeDark),
     );
+  }
+
+  /// Reemplaza el checkout real cuando el backend no tiene credenciales de
+  /// MercadoPago cargadas (ver `_pedirCancion` y RequestService.
+  /// pagoRealActivo) — confirma la propina directo, sin tarjeta ni WebView,
+  /// para no perder el flujo completo (pedir → aceptar/rechazar) en un
+  /// build de demo. Deja clarísimo en el diálogo que no es un cobro real.
+  Future<bool> _confirmarPagoSimulado({
+    required ItunesTrack pista,
+    required int montoClp,
+    required bool terminosAceptados,
+  }) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        icon: Icon(Icons.science_outlined, color: AppColors.limeGreen, size: 32),
+        title: const Text('Propina simulada (demo)',
+            style: TextStyle(color: AppColors.white)),
+        content: Text(
+          'Esta versión de demostración no cobra de verdad. Se registrará '
+          'una propina de \$${montoClp.toString()} CLP simulada para que el '
+          'DJ pueda aceptar o rechazar la solicitud igual que en producción.',
+          style: const TextStyle(color: AppColors.lavender),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar',
+                style: TextStyle(color: AppColors.muted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child:
+                Text('Confirmar', style: TextStyle(color: AppColors.limeGreen)),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return false;
+    if (!mounted) return false;
+
+    try {
+      await _requestService.crear(
+        eventId: widget.evento.id,
+        itunesTrackId: pista.trackId,
+        titulo: pista.trackName,
+        artista: pista.artistName,
+        artworkUrl: pista.artworkUrl,
+        montoClp: montoClp,
+        terminosAceptados: terminosAceptados,
+      );
+      return true;
+    } on ApiException catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.danger),
+      );
+      return false;
+    } catch (_) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No se pudo conectar con el servidor.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return false;
+    }
   }
 
   Future<void> _cargarPendientesLocales() async {
