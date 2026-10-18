@@ -6,6 +6,7 @@ const env = require('./config/env');
 const routes = require('./routes');
 const { paginaCheckout } = require('./controllers/checkout.controller');
 const { paginaDisplay } = require('./controllers/display.controller');
+const { paginaInicio, paginaPrivacidad } = require('./controllers/pages.controller');
 const { notFoundHandler, errorHandler } = require('./middleware/error.middleware');
 
 function crearApp(io) {
@@ -54,6 +55,13 @@ function crearApp(io) {
   // tablet del local — el código ya es público por diseño (ver
   // display.controller.js), así que no necesita autenticación.
   app.get('/display/:code', paginaDisplay);
+
+  // Páginas públicas mínimas, solo para cumplir el requisito de Google
+  // Cloud Console (pantalla de consentimiento OAuth, "URL de página
+  // principal" y "URL de política de privacidad") al publicar la app en
+  // modo producción externa — ver pages.controller.js.
+  app.get('/', paginaInicio);
+  app.get('/privacy', paginaPrivacidad);
 
   app.use('/api', routes);
 
