@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: budsound-postgres
+    environment:
+      POSTGRES_USER: budsound
+      POSTGRES_PASSWORD: budsound
+      POSTGRES_DB: budsound
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U budsound"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./budsound_backend
+    container_name: budsound-backend
+    env_file:
+      - ./budsound_backend/.env
+    environment:
+      DATABASE_URL: postgresql://budsound:budsound@postgres:5432/budsound
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  adminer:
+    image: adminer
+    container_name: budsound-adminer
+    profiles: ["tools"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
