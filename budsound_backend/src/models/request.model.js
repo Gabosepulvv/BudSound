@@ -31,6 +31,23 @@ async function crear({
   return rows[0];
 }
 
+// Anti-spam: evita que un mismo participante pida la misma canción varias
+// veces seguidas en el mismo evento — sin esto, alguien podría llenar la
+// cola del DJ repitiendo la misma solicitud. 7 minutos para que coincida
+// con el plazo que tiene el DJ para responder (ver `limiteSolicitudMinutos`
+// en solicitud_countdown.dart): si ya pasó ese tiempo, lo normal es que la
+// primera solicitud ya se haya resuelto (aceptada, rechazada o vencida).
+async function tieneSolicitudRecienteDeCancion({ eventId, participanteId, itunesTrackId }) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM song_requests
+     WHERE event_id = $1 AND participante_id = $2 AND itunes_track_id = $3
+       AND created_at > now() - interval '7 minutes'
+     LIMIT 1`,
+    [eventId, participanteId, itunesTrackId],
+  );
+  return rows.length > 0;
+}
+
 async function buscarPorId(id) {
   const { rows } = await pool.query('SELECT * FROM song_requests WHERE id = $1', [id]);
   return rows[0] || null;
@@ -134,6 +151,7 @@ async function cancelarSolicitudesColgadas(timeoutMinutes) {
 
 module.exports = {
   crear,
+  tieneSolicitudRecienteDeCancion,
   buscarPorId,
   eliminar,
   listarPorEvento,

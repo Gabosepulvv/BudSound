@@ -77,6 +77,17 @@ const crear = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Falta el método de pago para la propina.');
   }
 
+  // Anti-spam: evita que alguien llene la cola repitiendo la misma canción
+  // — ver request.model.js, tieneSolicitudRecienteDeCancion.
+  const yaPedidaHaceRato = await requestModel.tieneSolicitudRecienteDeCancion({
+    eventId: event.id,
+    participanteId: req.user.sub,
+    itunesTrackId,
+  });
+  if (yaPedidaHaceRato) {
+    throw new ApiError(429, 'Ya pediste esta canción hace poco. Espera unos minutos antes de volver a pedirla.');
+  }
+
   // Mejor esfuerzo: nunca bloquea ni hace fallar la solicitud si Deezer no
   // tiene la canción o no responde (ver deezer.service.js).
   const bpm = await deezerService.buscarBpm({ titulo: titulo.trim(), artista: artista.trim() });
