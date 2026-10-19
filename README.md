@@ -36,6 +36,17 @@ fases de evaluación a lo largo de 18 semanas. Artefactos completos en
 - [Definition of Done](docs/scrum/definition-of-done.md)
 - [Evidencia de retrospectivas](docs/scrum/retrospectivas.md)
 
+## Diagramas
+
+Artefactos completos en [`docs/diagrams/`](docs/diagrams/) (Mermaid — se
+ven renderizados directo en GitHub):
+
+- [Arquitectura y componentes](docs/diagrams/arquitectura.md)
+- [Modelo de datos (ER)](docs/diagrams/modelo-datos.md)
+- [Casos de uso](docs/diagrams/casos-de-uso.md)
+- [Clases (modelos de dominio)](docs/diagrams/clases.md)
+- [Secuencia de la funcionalidad principal](docs/diagrams/secuencia-solicitud.md)
+
 ## Arquitectura
 
 Ninguna vista (Participante o DJ) accede directo a la base de datos ni a
