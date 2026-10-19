@@ -1,8 +1,8 @@
 # BudSound
 
 App móvil para pedir canciones a un DJ en eventos en vivo mediante un
-código QR, con una propina opcional al DJ. Reemplaza la interrupción
-física al DJ ("oye, toca esta") por un canal digital y ordenado.
+código QR, con una propina obligatoria al DJ. Reemplaza la interrupción
+física al DJ ("oye, toca esta cancion") por un canal digital y ordenado.
 
 ## Qué problema resuelve
 
