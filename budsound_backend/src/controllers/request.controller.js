@@ -210,6 +210,11 @@ async function resolverSolicitud(req, res, nuevoStatus) {
       comisionClp,
       montoNetoClp,
       mpPaymentId: pago.preferenceId,
+      // Acá "aceptar" la solicitud ES el pago (no hay un paso de captura
+      // aparte como en el flujo real) — sin esto quedaba en PENDIENTE por
+      // defecto y las sumas de recaudación (que solo cuentan APROBADA) le
+      // sumaban $0 a cualquier propina simulada.
+      status: 'APROBADA',
     });
   }
 

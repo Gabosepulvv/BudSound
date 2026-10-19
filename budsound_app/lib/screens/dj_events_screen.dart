@@ -964,6 +964,16 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w700),
                       ),
+                      if (s.bpm != null) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '${s.bpm} BPM',
+                          style: const TextStyle(
+                              color: _textoSecundarioSobreBlanco,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ],
                   ),
                 ),

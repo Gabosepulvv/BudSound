@@ -31,12 +31,24 @@ String imagenABase64DataUrl(Uint8List bytes) {
   return 'data:${detectarMimeImagen(bytes)};base64,${base64Encode(bytes)}';
 }
 
+/// Cache por data URL — `MemoryImage` compara sus bytes por identidad, no
+/// por contenido, así que decodificar el mismo data URL de nuevo en cada
+/// build() (ej. cada vez que llega una solicitud por socket y la pantalla
+/// del DJ se redibuja) genera una instancia "distinta" para Flutter, que
+/// la trata como una imagen nueva y produce un parpadeo visible aunque la
+/// imagen real no haya cambiado. Reusar la misma instancia lo evita.
+final Map<String, MemoryImage> _cacheImagenes = {};
+
 /// Decodifica un data URL a un `ImageProvider`, o `null` si viene vacío o
 /// corrupto — para no arriesgar toda la pantalla por un dato guardado mal.
 ImageProvider? decodificarImagenDataUrl(String? dataUrl) {
   if (dataUrl == null || !dataUrl.contains(',')) return null;
+  final cacheada = _cacheImagenes[dataUrl];
+  if (cacheada != null) return cacheada;
   try {
-    return MemoryImage(base64Decode(dataUrl.split(',').last));
+    final imagen = MemoryImage(base64Decode(dataUrl.split(',').last));
+    _cacheImagenes[dataUrl] = imagen;
+    return imagen;
   } catch (_) {
     return null;
   }

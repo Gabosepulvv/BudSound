@@ -174,6 +174,12 @@ class SessionService {
     await _prefs!.remove(_kUltimoEventoCode);
   }
 
+  // El código del último evento del Participante (`_kUltimoEventoCode`) NO
+  // se borra acá a propósito: es un código público de evento, no un dato
+  // de sesión sensible, y la pantalla de Inicio lo revalida solo contra el
+  // backend cada vez que se abre — borrarlo en el logout hacía que
+  // "cerrar sesión y volver a entrar" perdiera el evento activo sin
+  // ningún motivo real.
   Future<void> cerrarSesion() async {
     _prefs ??= await SharedPreferences.getInstance();
     _jwt = null;
@@ -181,13 +187,11 @@ class SessionService {
     _nombreVisible = null;
     _rol = UserRole.publico;
     _usuario = null;
-    _ultimoEventoCode = null;
     await _secureStorage.delete(key: _kJwtSecure);
     await _prefs!.remove(_kJwtLegacy);
     await _prefs!.remove(_kEmail);
     await _prefs!.remove(_kRol);
     await _prefs!.remove(_kNombre);
     await _prefs!.remove(_kUsuario);
-    await _prefs!.remove(_kUltimoEventoCode);
   }
 }
