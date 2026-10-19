@@ -27,7 +27,14 @@ productos separados — la interfaz cambia según el rol de la cuenta.
 ## Metodología
 
 Scrum, con 7 sprints (Sprint 0 al 6) mapeados a las fechas del ramo, en 3
-fases de evaluación a lo largo de 18 semanas.
+fases de evaluación a lo largo de 18 semanas. Artefactos completos en
+[`docs/scrum/`](docs/scrum/):
+
+- [Product Vision](docs/scrum/product-vision.md)
+- [Product Backlog priorizado](docs/scrum/product-backlog.md)
+- [Sprint Backlog por sprint](docs/scrum/sprint-backlog.md)
+- [Definition of Done](docs/scrum/definition-of-done.md)
+- [Evidencia de retrospectivas](docs/scrum/retrospectivas.md)
 
 ## Arquitectura
 
