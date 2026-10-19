@@ -72,6 +72,32 @@
   de entorno sensibles para blindar contra ese tipo de error de copiado a
   futuro.
 
+## Limitación conocida: pago real de punta a punta con una cuenta de DJ real
+
+El split de pagos por DJ (OAuth de MercadoPago) se implementó y se probó
+con una cuenta real conectada. El flujo completo (autorizar → capturar)
+se construyó y se verificó contra la API real de MercadoPago, pero un
+intento de pago real con esa cuenta conectada falló con un error
+genérico ("Params Error") de MercadoPago.
+
+Se investigó a fondo, reproduciendo la llamada directa a la API: la causa
+no fue un bug de BudSound, sino que la cuenta de MercadoPago de esa DJ
+(una cuenta personal real, no una de prueba) no está habilitada por
+MercadoPago para **recibir** pagos como vendedora todavía — su propio
+`GET /users/me` devuelve `"sell":{"allow":false,"codes":
+["rejected_by_regulations"]}`. Es una restricción de verificación/
+regulación que MercadoPago le exige directamente a esa cuenta (típicamente
+formalizar o declarar la actividad ante impuestos), completamente fuera
+del control del equipo y del código de BudSound.
+
+Como resolver eso depende de que la propia DJ complete ese trámite con
+MercadoPago — y no había urgencia para desbloquearlo durante el proyecto
+— el equipo decidió explícitamente no bloquearse esperando eso, y seguir
+probando y demostrando el flujo completo con el modo de pago simulado en
+su lugar (ver Sprint 5 → Sprint 6). La integración técnica del lado de
+BudSound está terminada y probada; lo que queda pendiente es ajeno al
+proyecto.
+
 ## Cierre del proyecto
 
 - **Qué funcionó bien en general:** diseñar cada integración externa
