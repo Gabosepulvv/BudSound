@@ -265,6 +265,12 @@ class _QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<_QrScannerScreen> {
   final _controller = MobileScannerController();
+  // Sin esto, si onDetect dispara más de una vez con el mismo QR (pasa
+  // seguido mientras la cámara sigue leyendo cuadros de video de camino a
+  // cerrarse), se intenta hacer pop() dos veces sobre la misma ruta — la
+  // segunda vez no hay nada que cerrar y la pantalla queda colgada en
+  // negro en vez de navegar.
+  bool _yaDetectado = false;
 
   @override
   void dispose() {
@@ -297,11 +303,40 @@ class _QrScannerScreenState extends State<_QrScannerScreen> {
       body: MobileScanner(
         controller: _controller,
         onDetect: (capture) {
+          if (_yaDetectado) return;
           final valor = capture.barcodes.firstOrNull?.rawValue;
           if (valor != null && valor.isNotEmpty) {
+            _yaDetectado = true;
             Navigator.of(context).pop(valor);
           }
         },
+        // Por defecto, si la cámara falla, mobile_scanner solo muestra un
+        // ícono sobre fondo negro, sin ningún texto — imposible saber qué
+        // pasó realmente (permiso denegado, cámara en uso, etc.) sin
+        // conectar el celular a una computadora. Mostrar el error acá
+        // mismo en pantalla deja ver la causa real con solo una captura.
+        errorBuilder: (context, error) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline_rounded,
+                    color: Colors.white, size: 40),
+                const SizedBox(height: 12),
+                Text(
+                  'No se pudo abrir la cámara.\n${error.errorCode.name}: ${error.errorDetails?.message ?? "sin más detalles"}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ),
+        placeholderBuilder: (context) => const Center(
+          child: Text('Iniciando cámara…',
+              style: TextStyle(color: Colors.white54, fontSize: 13)),
+        ),
       ),
     );
   }
