@@ -15,7 +15,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   qr_flutter: ^4.1.0
   socket_io_client: ^2.0.3+1
-  mobile_scanner: ^4.0.1
+  mobile_scanner: ^7.4.2
   image_picker: ^1.1.2
   webview_flutter: ^4.9.0
   google_sign_in: ^6.2.1

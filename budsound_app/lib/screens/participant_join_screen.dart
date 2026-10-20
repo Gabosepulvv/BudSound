@@ -280,12 +280,12 @@ class _QrScannerScreenState extends State<_QrScannerScreen> {
         backgroundColor: Colors.transparent,
         title: const Text('Escanea el QR del evento'),
         actions: [
-          ValueListenableBuilder<TorchState>(
-            valueListenable: _controller.torchState,
+          ValueListenableBuilder<MobileScannerState>(
+            valueListenable: _controller,
             builder: (context, estado, _) => IconButton(
               onPressed: _controller.toggleTorch,
               icon: Icon(
-                estado == TorchState.on
+                estado.torchState == TorchState.on
                     ? Icons.flash_on_rounded
                     : Icons.flash_off_rounded,
               ),
