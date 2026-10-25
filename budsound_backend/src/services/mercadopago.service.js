@@ -61,30 +61,39 @@ async function autorizarPago({
   djAccessToken,
   applicationFee,
 }) {
+  const body = {
+    transaction_amount: montoClp,
+    token,
+    description: descripcion,
+    installments: installments || 1,
+    payment_method_id: paymentMethodId,
+    capture: false,
+    payer: {
+      email: payerEmail,
+      ...(identificationType && identificationNumber
+        ? { identification: { type: identificationType, number: identificationNumber } }
+        : {}),
+    },
+    external_reference: requestId,
+    // Varios bancos comparten el mismo rango de tarjetas (BIN); sin
+    // esto MercadoPago puede rechazar el pago con "Params Error" al no
+    // poder resolver solo a qué emisor pertenece.
+    ...(issuerId ? { issuer_id: issuerId } : {}),
+    ...(djAccessToken && applicationFee ? { application_fee: applicationFee } : {}),
+  };
+  // MercadoPago devuelve "Params Error" sin decir qué parámetro falló (ver
+  // `llamarMp`, que ya loguea esa respuesta) — sin esto, no hay forma de
+  // comparar qué mandamos de verdad contra qué pide. `token` se enmascara
+  // porque es de un solo uso, pero igual es un dato de la tarjeta.
+  console.log(
+    'Body enviado a MercadoPago (/v1/payments):',
+    JSON.stringify({ ...body, token: token ? `${token.slice(0, 6)}…` : token }, null, 2),
+  );
   const pago = await llamarMp('/v1/payments', {
     method: 'POST',
     idempotencyKey: `budsound-autorizacion-${requestId}`,
     accessToken: djAccessToken,
-    body: {
-      transaction_amount: montoClp,
-      token,
-      description: descripcion,
-      installments: installments || 1,
-      payment_method_id: paymentMethodId,
-      capture: false,
-      payer: {
-        email: payerEmail,
-        ...(identificationType && identificationNumber
-          ? { identification: { type: identificationType, number: identificationNumber } }
-          : {}),
-      },
-      external_reference: requestId,
-      // Varios bancos comparten el mismo rango de tarjetas (BIN); sin
-      // esto MercadoPago puede rechazar el pago con "Params Error" al no
-      // poder resolver solo a qué emisor pertenece.
-      ...(issuerId ? { issuer_id: issuerId } : {}),
-      ...(djAccessToken && applicationFee ? { application_fee: applicationFee } : {}),
-    },
+    body,
   });
 
   if (!['authorized', 'approved', 'pending', 'in_process'].includes(pago.status)) {
