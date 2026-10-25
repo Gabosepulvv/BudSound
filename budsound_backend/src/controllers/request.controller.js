@@ -5,6 +5,7 @@ const transactionModel = require('../models/transaction.model');
 const mercadopagoService = require('../services/mercadopago.service');
 const mercadopagoOauthService = require('../services/mercadopago-oauth.service');
 const deezerService = require('../services/deezer.service');
+const debugStream = require('../services/debug-stream.service');
 const env = require('../config/env');
 const { ApiError } = require('../middleware/error.middleware');
 const asyncHandler = require('../utils/asyncHandler');
@@ -144,8 +145,21 @@ const crear = asyncHandler(async (req, res) => {
         mpPaymentId: String(pago.id),
         status: 'AUTORIZADA',
       });
+      debugStream.emitir('mp_success', {
+        titulo: request.titulo,
+        montoClp: monto,
+        mpPaymentId: pago.id,
+        djConectado: Boolean(djAccessToken),
+      });
     } catch (error) {
       console.error('Detalle de MercadoPago al autorizar pago:', JSON.stringify(error.mpData ?? error.message, null, 2));
+      debugStream.emitir('mp_error', {
+        titulo: request.titulo,
+        montoClp: monto,
+        djConectado: Boolean(djAccessToken),
+        mensaje: error.message,
+        mpData: error.mpData ?? null,
+      });
       await requestModel.eliminar(request.id);
       throw new ApiError(402, `El pago no se pudo autorizar: ${error.message}`);
     }

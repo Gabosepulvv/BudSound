@@ -7,6 +7,8 @@ const paymentRoutes = require('./payment.routes');
 const djRoutes = require('./dj.routes');
 const paymentController = require('../controllers/payment.controller');
 const mercadopagoService = require('../services/mercadopago.service');
+const debugStream = require('../services/debug-stream.service');
+const env = require('../config/env');
 const { pool } = require('../config/db');
 
 const router = Router();
@@ -28,6 +30,25 @@ router.get('/health', async (req, res) => {
 // flujo de pago real sin tocar la app.
 router.get('/payment-mode', (req, res) => {
   res.json({ pagoReal: mercadopagoService.credencialesListas() });
+});
+
+// Panel de diagnóstico en vivo (ver debug-stream.service.js) — protegido
+// con una clave en la URL en vez de un login propio, porque quien lo usa es
+// el equipo mirando sus propios pagos de prueba, no un usuario de la app.
+// Sin DEBUG_STREAM_KEY configurada, queda apagado (503) por completo.
+router.get('/debug/stream', (req, res) => {
+  if (!env.debugStreamKey || req.query.key !== env.debugStreamKey) {
+    res.status(503).json({ error: 'Panel de diagnóstico no disponible.' });
+    return;
+  }
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  res.write(': conectado\n\n');
+  debugStream.conectar(res);
+  req.on('close', () => debugStream.desconectar(res));
 });
 
 router.use('/auth', authRoutes);

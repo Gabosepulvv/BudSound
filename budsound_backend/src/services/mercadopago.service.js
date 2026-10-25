@@ -1,4 +1,5 @@
 const env = require('../config/env');
+const debugStream = require('./debug-stream.service');
 
 const MP_API = 'https://api.mercadopago.com';
 
@@ -85,10 +86,9 @@ async function autorizarPago({
   // `llamarMp`, que ya loguea esa respuesta) — sin esto, no hay forma de
   // comparar qué mandamos de verdad contra qué pide. `token` se enmascara
   // porque es de un solo uso, pero igual es un dato de la tarjeta.
-  console.log(
-    'Body enviado a MercadoPago (/v1/payments):',
-    JSON.stringify({ ...body, token: token ? `${token.slice(0, 6)}…` : token }, null, 2),
-  );
+  const bodyParaLog = { ...body, token: token ? `${token.slice(0, 6)}…` : token };
+  console.log('Body enviado a MercadoPago (/v1/payments):', JSON.stringify(bodyParaLog, null, 2));
+  debugStream.emitir('mp_request', bodyParaLog);
   const pago = await llamarMp('/v1/payments', {
     method: 'POST',
     idempotencyKey: `budsound-autorizacion-${requestId}`,

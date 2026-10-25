@@ -59,6 +59,11 @@ module.exports = {
   // respuesta, no tiene sentido hacerlo esperar horas como con una compra
   // online común.
   requestTimeoutMinutes: Number(process.env.REQUEST_TIMEOUT_MINUTES) || 7,
+  // Panel de diagnóstico en vivo (GET /api/debug/stream?key=...) para ver en
+  // tiempo real qué se manda y qué responde MercadoPago mientras se prueba
+  // el pago desde la app — sin esto configurado, el endpoint responde 503
+  // (mismo patrón resiliente que el resto de las integraciones opcionales).
+  debugStreamKey: process.env.DEBUG_STREAM_KEY || '',
   // Corre seguido (no cada 15 min como antes) porque el plazo mismo ahora
   // es de minutos, no de horas — si el barrido corriera cada 15 min, una
   // solicitud podría quedar "vencida" sin cancelarse hasta 15 minutos
