@@ -146,6 +146,7 @@ const crear = asyncHandler(async (req, res) => {
         status: 'AUTORIZADA',
       });
       debugStream.emitir('mp_success', {
+        requestId: request.id,
         titulo: request.titulo,
         montoClp: monto,
         mpPaymentId: pago.id,
@@ -154,6 +155,7 @@ const crear = asyncHandler(async (req, res) => {
     } catch (error) {
       console.error('Detalle de MercadoPago al autorizar pago:', JSON.stringify(error.mpData ?? error.message, null, 2));
       debugStream.emitir('mp_error', {
+        requestId: request.id,
         titulo: request.titulo,
         montoClp: monto,
         djConectado: Boolean(djAccessToken),
