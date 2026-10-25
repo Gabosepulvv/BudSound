@@ -163,6 +163,18 @@ const crear = asyncHandler(async (req, res) => {
         mpData: error.mpData ?? null,
       });
       await requestModel.eliminar(request.id);
+      // MercadoPago no autoriza captura diferida (autorizar ahora, cobrar
+      // después — la base del modelo de cobro condicionado de BudSound, ver
+      // CLAUDE.md riesgo "Autorización de pago vs. captura") con tarjetas de
+      // débito, solo crédito — es una restricción de MercadoPago, no un bug.
+      // Mensaje aparte para que el Participante sepa qué hacer en vez de ver
+      // un error técnico sin sentido.
+      if (/deferred capture/i.test(error.message)) {
+        throw new ApiError(
+          402,
+          'Esta tarjeta de débito no se puede usar para pagar propinas en BudSound — usa una tarjeta de crédito.',
+        );
+      }
       throw new ApiError(402, `El pago no se pudo autorizar: ${error.message}`);
     }
   }
