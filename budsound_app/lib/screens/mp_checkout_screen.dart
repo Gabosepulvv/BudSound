@@ -188,6 +188,8 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
         paymentMethodId: datos['paymentMethodId'] as String,
         installments: (datos['installments'] as num?)?.toInt(),
         issuerId: datos['issuerId'] as String?,
+        identificationType: datos['identificationType'] as String?,
+        identificationNumber: datos['identificationNumber'] as String?,
       );
     }
   }
@@ -199,6 +201,8 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
     required String paymentMethodId,
     int? installments,
     String? issuerId,
+    String? identificationType,
+    String? identificationNumber,
   }) async {
     if (_confirmando) return;
     _confirmando = true;
@@ -216,6 +220,8 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
         paymentMethodId: paymentMethodId,
         installments: installments,
         issuerId: issuerId,
+        identificationType: identificationType,
+        identificationNumber: identificationNumber,
         tokenCheckout: _checkoutToken,
       );
       _diag('Flutter: respuesta OK, solicitud creada.');

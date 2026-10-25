@@ -169,6 +169,12 @@ function paginaCheckout(req, res) {
             // (el Brick ya lo resuelve y lo entrega en formData, pero se
             // estaba descartando acá sin mandarlo a Flutter).
             issuerId: formData.issuer_id,
+            // El Brick también pide el RUT del pagador (payer.identification)
+            // dentro del mismo formulario — MercadoPago lo exige para pagos
+            // reales con tarjeta en Chile (en modo simulado nunca se notó
+            // porque no se llegaba a llamar a la API real).
+            identificationType: formData.payer?.identification?.type,
+            identificationNumber: formData.payer?.identification?.number,
           }));
           // Resuelve de una — desde la perspectiva del Brick, "enviar" ya
           // terminó. La confirmación real (ok/error) la manda Flutter de

@@ -45,6 +45,8 @@ const crear = asyncHandler(async (req, res) => {
     paymentMethodId,
     installments,
     issuerId,
+    identificationType,
+    identificationNumber,
   } = req.body;
   const event = await eventModel.buscarPorId(req.params.eventId);
 
@@ -128,6 +130,8 @@ const crear = asyncHandler(async (req, res) => {
         paymentMethodId,
         installments,
         issuerId,
+        identificationType,
+        identificationNumber,
         payerEmail: req.user.email,
         djAccessToken,
         applicationFee: comisionClp,
