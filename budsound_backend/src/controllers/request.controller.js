@@ -44,6 +44,7 @@ const crear = asyncHandler(async (req, res) => {
     cardToken,
     paymentMethodId,
     installments,
+    issuerId,
   } = req.body;
   const event = await eventModel.buscarPorId(req.params.eventId);
 
@@ -126,6 +127,7 @@ const crear = asyncHandler(async (req, res) => {
         token: cardToken,
         paymentMethodId,
         installments,
+        issuerId,
         payerEmail: req.user.email,
         djAccessToken,
         applicationFee: comisionClp,

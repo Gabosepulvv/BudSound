@@ -10,6 +10,7 @@ import '../services/api_client.dart';
 import '../services/event_socket.dart';
 import '../services/pending_requests_store.dart';
 import '../services/request_service.dart';
+import '../services/session_service.dart';
 import '../services/song_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
@@ -75,6 +76,39 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     _busqueda.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Dejar el evento actual sin esperar a que cierre — el participante lo
+  /// pide expresamente desde donde pasa el tiempo pidiendo canciones.
+  Future<void> _salirDelEvento() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('¿Salir del evento?',
+            style: TextStyle(color: AppColors.white)),
+        content: const Text(
+          'Vas a dejar de ver este evento en tu app. Puedes volver a unirte '
+          'cuando quieras escaneando el QR o escribiendo el código.',
+          style: TextStyle(color: AppColors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    await SessionService.instance.limpiarUltimoEventoCode();
+    if (!mounted) return;
+    Navigator.of(context).pop();
   }
 
   /// Canciones populares que se muestran apenas se abre la pestaña, antes
@@ -540,6 +574,13 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(widget.evento.nombre),
+        actions: [
+          IconButton(
+            onPressed: _salirDelEvento,
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: 'Salir del evento',
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

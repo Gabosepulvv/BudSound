@@ -44,7 +44,10 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
   Future<void> _cargarEventoActual() async {
     final code = SessionService.instance.ultimoEventoCode;
     if (code == null) {
-      setState(() => _cargandoEventoActual = false);
+      setState(() {
+        _eventoActual = null;
+        _cargandoEventoActual = false;
+      });
       return;
     }
     try {
@@ -100,6 +103,39 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
       MaterialPageRoute(builder: (_) => ParticipantEventScreen(evento: evento)),
     );
     if (mounted) _cargarEventoActual();
+  }
+
+  /// Dejar el evento actual sin esperar a que cierre o a que el código
+  /// guardado deje de servir — el participante lo pide expresamente.
+  Future<void> _salirDelEvento() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('¿Salir del evento?',
+            style: TextStyle(color: AppColors.white)),
+        content: const Text(
+          'Vas a dejar de ver este evento en tu app. Puedes volver a unirte '
+          'cuando quieras escaneando el QR o escribiendo el código.',
+          style: TextStyle(color: AppColors.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    await SessionService.instance.limpiarUltimoEventoCode();
+    if (!mounted) return;
+    setState(() => _eventoActual = null);
   }
 
   @override
@@ -246,6 +282,13 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
             color: AppColors.success,
             colorTexto: AppColors.onSuccess,
             onPressed: _abrirEventoActual,
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _salirDelEvento,
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('Salir del evento'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
           ),
         ],
       ),

@@ -164,6 +164,11 @@ function paginaCheckout(req, res) {
             cardToken: formData.token,
             paymentMethodId: formData.payment_method_id,
             installments: formData.installments,
+            // Sin esto, MercadoPago puede rechazar el pago con "Params
+            // Error" para tarjetas cuyo BIN comparte varios bancos emisores
+            // (el Brick ya lo resuelve y lo entrega en formData, pero se
+            // estaba descartando acá sin mandarlo a Flutter).
+            issuerId: formData.issuer_id,
           }));
           // Resuelve de una — desde la perspectiva del Brick, "enviar" ya
           // terminó. La confirmación real (ok/error) la manda Flutter de

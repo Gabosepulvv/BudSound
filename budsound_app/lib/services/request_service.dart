@@ -33,6 +33,7 @@ class RequestService {
     String? cardToken,
     String? paymentMethodId,
     int? installments,
+    String? issuerId,
     String? tokenCheckout,
   }) async {
     final data = await _api.post(
@@ -48,6 +49,7 @@ class RequestService {
         if (cardToken != null) 'cardToken': cardToken,
         if (paymentMethodId != null) 'paymentMethodId': paymentMethodId,
         if (installments != null) 'installments': installments,
+        if (issuerId != null) 'issuerId': issuerId,
       },
     );
     return SongRequestModel.fromJson(data['request'] as Map<String, dynamic>);

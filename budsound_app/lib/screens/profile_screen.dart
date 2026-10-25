@@ -132,7 +132,45 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     }
   }
 
+  // Antes de abrir MercadoPago, se le avisa a la persona que si el
+  // navegador del celular ya tiene una sesión guardada de OTRA cuenta (ej.
+  // probando con varios DJ seguidos en el mismo dispositivo), MercadoPago
+  // va a entrar directo con esa cuenta sin preguntar — no hay ningún
+  // parámetro de la URL de autorización que fuerce un selector de cuentas
+  // (se investigó, no existe). La única forma real de elegir otra cuenta es
+  // abrir el link en un navegador distinto o en una pestaña de incógnito.
+  Future<bool?> _confirmarCuentaMp() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('¿Con qué cuenta vas a conectar?',
+            style: TextStyle(color: AppColors.white)),
+        content: Text(
+          Platform.isAndroid
+              ? 'Si este celular ya tiene una sesión de MercadoPago iniciada con otra cuenta, en el siguiente paso elige "Abrir con" un navegador distinto (o uno en modo incógnito) para poder entrar con la cuenta correcta — MercadoPago no pregunta, entra directo con la sesión que ya esté guardada.'
+              : 'Si este dispositivo ya tiene una sesión de MercadoPago iniciada con otra cuenta, abre una pestaña privada en Safari antes de continuar — MercadoPago no pregunta, entra directo con la sesión que ya esté guardada.',
+          style: const TextStyle(color: AppColors.lavender),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar',
+                style: TextStyle(color: AppColors.muted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Entendido, continuar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _conectarMp() async {
+    final continuar = await _confirmarCuentaMp();
+    if (continuar != true) return;
+
     setState(() => _cargandoMp = true);
     try {
       final authUrl = await _mpConnect.iniciarConexion();

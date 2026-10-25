@@ -117,6 +117,13 @@ class AuthService {
     }
 
     try {
+      // Sin esto, `signIn()` reusa en silencio la última cuenta de Google
+      // con sesión en el dispositivo y nunca muestra el selector — quien
+      // quiera entrar con una cuenta distinta (ej. probando DJ y
+      // Participante con cuentas de Google separadas) se queda pegado
+      // siempre en la misma. `signOut()` solo limpia la sesión en caché de
+      // este plugin, no cierra la sesión de Google del dispositivo.
+      await _googleSignIn.signOut();
       final cuenta = await _googleSignIn.signIn();
       if (cuenta == null) {
         return const AuthResult.fail('Inicio de sesión cancelado.');

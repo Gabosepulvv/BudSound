@@ -49,6 +49,7 @@ async function autorizarPago({
   token,
   paymentMethodId,
   installments,
+  issuerId,
   payerEmail,
   // Cuando el DJ del evento conectó su propia cuenta (OAuth marketplace):
   // el pago se autoriza directo en SU cuenta (djAccessToken) y
@@ -71,6 +72,10 @@ async function autorizarPago({
       capture: false,
       payer: { email: payerEmail },
       external_reference: requestId,
+      // Varios bancos comparten el mismo rango de tarjetas (BIN); sin
+      // esto MercadoPago puede rechazar el pago con "Params Error" al no
+      // poder resolver solo a qué emisor pertenece.
+      ...(issuerId ? { issuer_id: issuerId } : {}),
       ...(djAccessToken && applicationFee ? { application_fee: applicationFee } : {}),
     },
   });
