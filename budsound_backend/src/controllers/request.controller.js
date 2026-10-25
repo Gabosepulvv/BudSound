@@ -27,7 +27,7 @@ const emitirTokenCheckout = asyncHandler(async (req, res) => {
   if (event.status !== 'ACTIVO') throw new ApiError(409, 'Este evento ya fue cerrado.');
 
   const checkoutToken = jwt.sign(
-    { sub: req.user.sub, role: 'PARTICIPANTE', scope: 'checkout', eventId: event.id },
+    { sub: req.user.sub, email: req.user.email, role: 'PARTICIPANTE', scope: 'checkout', eventId: event.id },
     env.jwtSecret,
     { expiresIn: `${CHECKOUT_TOKEN_MINUTOS_VALIDEZ}m` },
   );
