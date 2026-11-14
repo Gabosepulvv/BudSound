@@ -64,6 +64,19 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                 children: [
                   const GlowLogo(size: 64, showWordmark: true),
                   const SizedBox(height: 16),
+                  // Ícono distinto una vez enviado el enlace — mismo
+                  // tratamiento de confirmación visual que usa el registro
+                  // en su diálogo "Revisa tu correo" (ver register_screen),
+                  // antes esta pantalla solo cambiaba el texto sin ninguna
+                  // señal visual de que el envío funcionó.
+                  Icon(
+                    _enviado
+                        ? Icons.mark_email_read_outlined
+                        : Icons.lock_reset_rounded,
+                    size: 36,
+                    color: AppColors.limeGreen,
+                  ),
+                  const SizedBox(height: 12),
                   Text(
                     _enviado
                         ? 'Si el correo corresponde a una cuenta, te enviamos un enlace para restablecer tu contraseña.'

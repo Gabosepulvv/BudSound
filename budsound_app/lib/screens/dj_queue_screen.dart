@@ -9,12 +9,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api_config.dart';
 import '../models/event_model.dart';
 import '../models/song_request_model.dart';
+import '../services/api_client.dart';
 import '../services/dj_timer_service.dart';
 import '../services/event_service.dart';
 import '../services/event_socket.dart';
 import '../services/request_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../utils/clp_format.dart';
 import '../utils/image_data_url.dart';
 import '../widgets/event_banner_image.dart';
 import '../widgets/fade_slide_in.dart';
@@ -59,7 +61,16 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         onSolicitudCreada: _cargarCola,
         onSolicitudResuelta: _cargarCola,
         onSolicitudReproducida: _cargarCola,
-        onConectado: () => setState(() => _conectado = true),
+        // Sin este refresco, una solicitud creada/resuelta mientras el
+        // socket estaba caído (un corte de red breve, un restart del
+        // backend) nunca llega — el `event:join` del reconnect solo
+        // vuelve a unirse a la sala, no reenvía lo que se perdió
+        // mientras tanto. Sin esto, el DJ tenía que recargar la pantalla
+        // a mano para ver solicitudes nuevas tras cualquier corte.
+        onConectado: () {
+          setState(() => _conectado = true);
+          _cargarCola();
+        },
         onDesconectado: () => setState(() => _conectado = false),
       );
     _cargarCola();
@@ -254,7 +265,12 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text(e is ApiException
+              ? e.message
+              : 'No se pudo completar la acción. Revisa tu conexión.'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     } finally {
       if (mounted) setState(() => _resolviendo.remove(solicitud.id));
@@ -271,7 +287,12 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text(e is ApiException
+              ? e.message
+              : 'No se pudo completar la acción. Revisa tu conexión.'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     } finally {
       if (mounted) setState(() => _resolviendo.remove(solicitud.id));
@@ -394,7 +415,12 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text(e is ApiException
+              ? e.message
+              : 'No se pudo completar la acción. Revisa tu conexión.'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     }
   }
@@ -438,7 +464,12 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text(e is ApiException
+              ? e.message
+              : 'No se pudo completar la acción. Revisa tu conexión.'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     }
   }
@@ -466,7 +497,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            if (!_conectado) _bannerSinConexion(),
+            if (!_conectado) FadeSlideIn(child: _bannerSinConexion()),
             FadeSlideIn(child: _tarjetaQr()),
             if (_evento.activo) ...[
               const SizedBox(height: 16),
@@ -813,6 +844,14 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     );
   }
 
+  String _formatearClp(Object? valor) =>
+      formatearClp(valor is num ? valor : num.tryParse('$valor') ?? 0);
+
+  /// La recaudación neta es el único número que de verdad le importa al DJ
+  /// acá — antes se veía casi igual que el resto de las filas (solo un poco
+  /// más grande y en negrita). Ahora tiene su propia sección, separada por
+  /// un divisor, con el color de marca y el mismo estilo de número grande
+  /// que usa el código del evento en la tarjeta QR.
   Widget _tarjetaResumen(Map<String, dynamic> resumen) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -823,31 +862,57 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Resumen del evento',
-            style: TextStyle(
-                color: AppColors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              Icon(Icons.receipt_long_rounded,
+                  color: AppColors.limeGreen, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Resumen del evento',
+                style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           _filaResumen(
               'Solicitudes aceptadas', '${resumen['solicitudes_aceptadas']}'),
           _filaResumen(
               'Solicitudes totales', '${resumen['solicitudes_totales']}'),
-          _filaResumen(
-              'Recaudación bruta', '\$${resumen['recaudacion_bruta_clp']} CLP'),
-          _filaResumen(
-              'Comisión BudSound', '\$${resumen['comision_total_clp']} CLP'),
-          _filaResumen(
-              'Recaudación neta', '\$${resumen['recaudacion_neta_clp']} CLP',
-              destacado: true),
+          _filaResumen('Recaudación bruta',
+              '${_formatearClp(resumen['recaudacion_bruta_clp'])} CLP'),
+          _filaResumen('Comisión BudSound',
+              '-${_formatearClp(resumen['comision_total_clp'])} CLP'),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(color: AppColors.border, height: 1),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text('Recaudación neta',
+                  style: TextStyle(
+                      color: AppColors.lavender,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600)),
+              Text(
+                '${_formatearClp(resumen['recaudacion_neta_clp'])} CLP',
+                style: AppTheme.fontDisplay(
+                  color: AppColors.limeGreen,
+                  fontSize: 22,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _filaResumen(String etiqueta, String valor, {bool destacado = false}) {
+  Widget _filaResumen(String etiqueta, String valor) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
@@ -857,10 +922,10 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
               style: const TextStyle(color: AppColors.muted, fontSize: 13)),
           Text(
             valor,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.white,
               fontWeight: FontWeight.w700,
-              fontSize: destacado ? 16 : 13,
+              fontSize: 13,
             ),
           ),
         ],
@@ -891,6 +956,8 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _caratulaSolicitud(solicitud.artworkUrl),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -998,6 +1065,35 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Carátula de la canción pedida — el DJ la reconoce de un vistazo sin
+  /// tener que leer el título completo mientras mira la cola a medio set.
+  Widget _caratulaSolicitud(String? artworkUrl) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: artworkUrl == null || artworkUrl.isEmpty
+          ? Container(
+              width: 44,
+              height: 44,
+              color: AppColors.background,
+              child: const Icon(Icons.album_rounded,
+                  color: AppColors.muted, size: 20),
+            )
+          : Image.network(
+              artworkUrl,
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 44,
+                height: 44,
+                color: AppColors.background,
+                child: const Icon(Icons.album_rounded,
+                    color: AppColors.muted, size: 20),
+              ),
+            ),
     );
   }
 

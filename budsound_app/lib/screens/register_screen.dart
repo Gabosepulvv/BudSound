@@ -303,7 +303,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    'Selector de Perfil',
+                    '¿Cómo vas a usar BudSound?',
                     style: TextStyle(
                       color: AppColors.lavender,
                       fontWeight: FontWeight.w600,

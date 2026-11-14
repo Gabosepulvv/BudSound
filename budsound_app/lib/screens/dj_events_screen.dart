@@ -3,11 +3,13 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/event_model.dart';
 import '../models/song_request_model.dart';
+import '../services/api_client.dart';
 import '../services/event_service.dart';
 import '../services/request_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../utils/clp_format.dart';
 import '../utils/image_data_url.dart';
 import '../widgets/avatar_encabezado.dart';
 import '../widgets/budsound_text_field.dart';
@@ -461,7 +463,12 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text(e is ApiException
+              ? e.message
+              : 'No se pudo completar la acción. Revisa tu conexión.'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     }
   }
@@ -683,7 +690,7 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
       onRefresh: () async => _recargar(),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-        children: [_tarjeta(activo)],
+        children: [FadeSlideIn(child: _tarjeta(activo))],
       ),
     );
   }
@@ -958,7 +965,7 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '\$${s.montoClp}',
+                        formatearClp(s.montoClp),
                         style: const TextStyle(
                             color: _textoSobreBlanco,
                             fontSize: 12,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/song_request_model.dart';
 import '../services/request_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/clp_format.dart';
 import '../widgets/fade_slide_in.dart';
 import '../widgets/glow_logo.dart';
 
@@ -40,15 +41,7 @@ class _ParticipantHistoryScreenState extends State<ParticipantHistoryScreen> {
     return '$d/$m/${local.year} · $hh:$mm';
   }
 
-  String _formatearClp(int monto) {
-    final texto = monto.toString();
-    final buffer = StringBuffer();
-    for (var i = 0; i < texto.length; i++) {
-      if (i > 0 && (texto.length - i) % 3 == 0) buffer.write('.');
-      buffer.write(texto[i]);
-    }
-    return '\$$buffer';
-  }
+  String _formatearClp(int monto) => formatearClp(monto);
 
   ({IconData icono, Color color, String etiqueta}) _estado(
       SongRequestModel s) {

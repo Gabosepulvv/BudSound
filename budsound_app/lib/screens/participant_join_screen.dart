@@ -82,7 +82,12 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text(e is ApiException
+              ? e.message
+              : 'No se pudo completar la acción. Revisa tu conexión.'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     } finally {
       if (mounted) setState(() => _cargando = false);
@@ -325,64 +330,172 @@ class _QrScannerScreenState extends State<_QrScannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        elevation: 0,
         title: const Text('Escanea el QR del evento'),
         actions: [
-          ValueListenableBuilder<MobileScannerState>(
-            valueListenable: _controller,
-            builder: (context, estado, _) => IconButton(
-              onPressed: _controller.toggleTorch,
-              icon: Icon(
-                estado.torchState == TorchState.on
-                    ? Icons.flash_on_rounded
-                    : Icons.flash_off_rounded,
-              ),
-              tooltip: 'Linterna',
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ValueListenableBuilder<MobileScannerState>(
+              valueListenable: _controller,
+              builder: (context, estado, _) {
+                final prendida = estado.torchState == TorchState.on;
+                return Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: prendida
+                        ? AppColors.limeGreen
+                        : Colors.black.withValues(alpha: 0.4),
+                  ),
+                  child: IconButton(
+                    onPressed: _controller.toggleTorch,
+                    icon: Icon(
+                      prendida
+                          ? Icons.flash_on_rounded
+                          : Icons.flash_off_rounded,
+                      color: prendida ? AppColors.onLime : Colors.white,
+                    ),
+                    tooltip: 'Linterna',
+                  ),
+                );
+              },
             ),
           ),
         ],
       ),
-      body: MobileScanner(
-        controller: _controller,
-        onDetect: (capture) {
-          if (_yaDetectado) return;
-          final valor = capture.barcodes.firstOrNull?.rawValue;
-          if (valor != null && valor.isNotEmpty) {
-            _yaDetectado = true;
-            Navigator.of(context).pop(valor);
-          }
-        },
-        // Por defecto, si la cámara falla, mobile_scanner solo muestra un
-        // ícono sobre fondo negro, sin ningún texto — imposible saber qué
-        // pasó realmente (permiso denegado, cámara en uso, etc.) sin
-        // conectar el celular a una computadora. Mostrar el error acá
-        // mismo en pantalla deja ver la causa real con solo una captura.
-        errorBuilder: (context, error) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline_rounded,
-                    color: Colors.white, size: 40),
-                const SizedBox(height: 12),
-                Text(
-                  'No se pudo abrir la cámara.\n${error.errorCode.name}: ${error.errorDetails?.message ?? "sin más detalles"}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          MobileScanner(
+            controller: _controller,
+            onDetect: (capture) {
+              if (_yaDetectado) return;
+              final valor = capture.barcodes.firstOrNull?.rawValue;
+              if (valor != null && valor.isNotEmpty) {
+                _yaDetectado = true;
+                Navigator.of(context).pop(valor);
+              }
+            },
+            // Por defecto, si la cámara falla, mobile_scanner solo muestra
+            // un ícono sobre fondo negro, sin ningún texto — imposible
+            // saber qué pasó realmente (permiso denegado, cámara en uso,
+            // etc.) sin conectar el celular a una computadora. Mostrar el
+            // error acá mismo en pantalla deja ver la causa real con solo
+            // una captura.
+            errorBuilder: (context, error) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline_rounded,
+                        color: Colors.white, size: 40),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'No se pudo abrir la cámara.\nVerifica que le diste permiso de cámara a BudSound en el celular.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${error.errorCode.name}: ${error.errorDetails?.message ?? "sin más detalles"}',
+                      textAlign: TextAlign.center,
+                      style:
+                          const TextStyle(color: Colors.white38, fontSize: 11),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+            ),
+            placeholderBuilder: (context) => const Center(
+              child: Text('Iniciando cámara…',
+                  style: TextStyle(color: Colors.white54, fontSize: 13)),
             ),
           ),
-        ),
-        placeholderBuilder: (context) => const Center(
-          child: Text('Iniciando cámara…',
-              style: TextStyle(color: Colors.white54, fontSize: 13)),
-        ),
+          // Puramente decorativo: oscurece todo menos el recuadro central y
+          // marca sus esquinas, para que quede claro dónde apuntar el QR en
+          // vez de mostrar la cámara pelada a pantalla completa.
+          IgnorePointer(
+            child: CustomPaint(
+              painter: _VisorEscaneoPainter(color: AppColors.limeGreen),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Align(
+            alignment: const Alignment(0, 0.42),
+            child: Text(
+              'Apunta la cámara al código QR del evento',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.85),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// Dibuja el visor de escaneo: un recuadro central despejado (el resto de
+/// la pantalla se oscurece) con sus 4 esquinas marcadas en el acento de la
+/// marca — el patrón visual estándar de cualquier app de escaneo QR, en vez
+/// de mostrar la cámara a pantalla completa sin ninguna referencia de dónde
+/// apuntar.
+class _VisorEscaneoPainter extends CustomPainter {
+  _VisorEscaneoPainter({required this.color});
+
+  final Color color;
+  static const double _ladoRecuadro = 260;
+  static const double _radioEsquinas = 24;
+  static const double _largoMarca = 32;
+  static const double _grosorMarca = 5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centro = Offset(size.width / 2, size.height / 2 - 24);
+    final recuadro = Rect.fromCenter(
+      center: centro,
+      width: _ladoRecuadro,
+      height: _ladoRecuadro,
+    );
+    final recuadroRedondeado =
+        RRect.fromRectAndRadius(recuadro, const Radius.circular(_radioEsquinas));
+
+    final velo = Path()
+      ..addRect(Rect.largest)
+      ..addRRect(recuadroRedondeado)
+      ..fillType = PathFillType.evenOdd;
+    canvas.drawPath(velo, Paint()..color = Colors.black.withValues(alpha: 0.55));
+
+    final trazo = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _grosorMarca
+      ..strokeCap = StrokeCap.round;
+
+    void esquina(Offset esquinaPunto, Offset haciaX, Offset haciaY) {
+      canvas.drawLine(esquinaPunto, esquinaPunto + haciaX * _largoMarca, trazo);
+      canvas.drawLine(esquinaPunto, esquinaPunto + haciaY * _largoMarca, trazo);
+    }
+
+    final izq = recuadro.left;
+    final der = recuadro.right;
+    final arr = recuadro.top;
+    final abj = recuadro.bottom;
+    esquina(Offset(izq, arr), const Offset(1, 0), const Offset(0, 1));
+    esquina(Offset(der, arr), const Offset(-1, 0), const Offset(0, 1));
+    esquina(Offset(izq, abj), const Offset(1, 0), const Offset(0, -1));
+    esquina(Offset(der, abj), const Offset(-1, 0), const Offset(0, -1));
+  }
+
+  @override
+  bool shouldRepaint(covariant _VisorEscaneoPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 extension on List<Barcode> {

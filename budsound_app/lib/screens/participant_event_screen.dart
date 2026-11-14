@@ -14,6 +14,7 @@ import '../services/session_service.dart';
 import '../services/song_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../utils/clp_format.dart';
 import '../widgets/ambient_lights_background.dart';
 import '../widgets/budsound_text_field.dart';
 import '../widgets/fade_slide_in.dart';
@@ -57,10 +58,16 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       ..conectar(
         onSolicitudResuelta: _cargarMisSolicitudes,
         onPagoAprobado: _cargarMisSolicitudes,
+        // Mismo fix que en DjQueueScreen: sin este refresco, una
+        // solicitud resuelta por el DJ mientras el socket estaba caído
+        // nunca llega — el reconnect solo reenvía lo pendiente local
+        // (_reintentarPendientes), no refresca el estado de lo que ya
+        // se había enviado antes del corte.
         onConectado: () {
           if (!mounted) return;
           setState(() => _conectado = true);
           _reintentarPendientes();
+          _cargarMisSolicitudes();
         },
         onDesconectado: () => setState(() => _conectado = false),
       );
@@ -159,7 +166,12 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       if (!mounted) return;
       setState(() => _buscando = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text(e is ApiException
+              ? e.message
+              : 'No se pudo completar la acción. Revisa tu conexión.'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     }
   }
@@ -340,8 +352,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
   /// checkbox de Términos y Condiciones es obligatorio: una vez que el DJ
   /// acepta la solicitud no hay devolución (ver CLAUDE.md, riesgo "El
   /// participante pide la devolución del dinero").
-  static String _formatearClp(int valor) =>
-      valor >= 1000 ? '\$${valor ~/ 1000}.000' : '\$$valor';
+  static String _formatearClp(int valor) => formatearClp(valor);
 
   static const List<int> _montosPredefinidos = [
     500,
@@ -786,6 +797,37 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     );
   }
 
+  /// Carátula de la canción con el mismo recorte/tamaño que en los
+  /// resultados de búsqueda — antes estas tarjetas no mostraban ninguna
+  /// imagen, así que una vez enviada la solicitud la canción perdía toda
+  /// identidad visual.
+  Widget _caratula(String? artworkUrl) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: artworkUrl == null || artworkUrl.isEmpty
+          ? Container(
+              width: 48,
+              height: 48,
+              color: AppColors.background,
+              child: const Icon(Icons.album_rounded,
+                  color: AppColors.muted, size: 22),
+            )
+          : Image.network(
+              artworkUrl,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 48,
+                height: 48,
+                color: AppColors.background,
+                child: const Icon(Icons.album_rounded,
+                    color: AppColors.muted, size: 22),
+              ),
+            ),
+    );
+  }
+
   /// Solicitud guardada en el celular, todavía sin confirmar por el backend
   /// (sin `id` de servidor) — se distingue visualmente de las ya enviadas.
   Widget _tarjetaPendienteLocal(PendingSongRequest pendiente) {
@@ -798,12 +840,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       ),
       child: Row(
         children: [
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-                strokeWidth: 2, color: AppColors.muted),
-          ),
+          _caratula(pendiente.artworkUrl),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -823,16 +860,39 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                   style: const TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Sin conexión — se enviará sola',
-                  style: TextStyle(
-                      color: AppColors.muted,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12),
+                const Row(
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.muted),
+                    ),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Sin conexión — se enviará sola',
+                        style: TextStyle(
+                            color: AppColors.muted,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+          if (pendiente.montoClp > 0) ...[
+            const SizedBox(width: 8),
+            Text(
+              _formatearClp(pendiente.montoClp),
+              style: const TextStyle(
+                  color: AppColors.muted,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5),
+            ),
+          ],
         ],
       ),
     );
@@ -856,6 +916,8 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       ),
       child: Row(
         children: [
+          _caratula(solicitud.artworkUrl),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -888,13 +950,31 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
               ],
             ),
           ),
-          // La propina se autoriza al crear la solicitud y se cobra sola
-          // cuando el DJ acepta (ver McpCheckoutScreen) — no hay un paso de
-          // pago manual aparte que el Participante tenga que hacer acá.
-          if (solicitud.aceptada && solicitud.tienePropina)
-            Text('Pagado',
-                style: TextStyle(
-                    color: AppColors.success, fontWeight: FontWeight.w700)),
+          if (solicitud.tienePropina) ...[
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _formatearClp(solicitud.montoClp),
+                  style: const TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13),
+                ),
+                // La propina se autoriza al crear la solicitud y se cobra
+                // sola cuando el DJ acepta (ver McpCheckoutScreen) — no hay
+                // un paso de pago manual aparte que el Participante tenga
+                // que hacer acá.
+                if (solicitud.aceptada)
+                  Text('Pagado',
+                      style: TextStyle(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11)),
+              ],
+            ),
+          ],
         ],
       ),
     );

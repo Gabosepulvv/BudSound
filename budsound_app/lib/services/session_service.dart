@@ -113,9 +113,10 @@ class SessionService {
     return null;
   }
 
-  /// Lee el token persistido (con delay de splash) y confirma si hay sesión.
+  /// Lee el token persistido (con un delay mínimo de splash, para que el
+  /// logo no aparezca y desaparezca de golpe) y confirma si hay sesión.
   Future<bool> verificarTokenSesion() async {
-    await Future<void>.delayed(const Duration(milliseconds: 1600));
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     if (_prefs == null) {
       await cargarDesdeDisco();
     } else {

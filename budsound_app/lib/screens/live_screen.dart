@@ -33,7 +33,8 @@ class LiveScreen extends StatelessWidget {
       // por eso el modo daltónico (ColorblindModeService, ver
       // ShellScreen._ShellScreenState.build) no se reflejaba acá aunque sí
       // en Inicio y Perfil.
-      body: esDj ? const DjEventsScreen() : const ParticipantJoinScreen(),
+      // ignore: prefer_const_constructors
+      body: esDj ? DjEventsScreen() : ParticipantJoinScreen(),
     );
   }
 }

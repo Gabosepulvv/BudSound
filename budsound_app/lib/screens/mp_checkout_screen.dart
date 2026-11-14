@@ -65,6 +65,10 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
   // checkout acotado (15 min, solo sirve para crear ESTA solicitud) — ver
   // RequestService.obtenerTokenCheckout y CLAUDE.md, revisión de seguridad.
   Future<void> _iniciar() async {
+    setState(() {
+      _cargando = true;
+      _errorInicial = null;
+    });
     final String checkoutToken;
     try {
       checkoutToken =
@@ -291,8 +295,32 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
           if (_controller != null) WebViewWidget(controller: _controller!),
           if (_errorInicial != null)
             Center(
-              child: Text(_errorInicial!,
-                  style: TextStyle(color: AppColors.danger)),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.wifi_off_rounded,
+                        size: 32, color: AppColors.danger),
+                    const SizedBox(height: 12),
+                    Text(
+                      _errorInicial!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.danger),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: _iniciar,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.limeGreen,
+                        side: BorderSide(color: AppColors.limeGreen),
+                      ),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
             ),
           if (_cargando)
             Center(

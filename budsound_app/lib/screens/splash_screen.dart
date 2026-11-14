@@ -7,7 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/dark_neon_scaffold.dart';
 import '../widgets/glow_logo.dart';
 
-/// Pantalla de arranque: verifica un JWT simulado y decide la ruta.
+/// Pantalla de arranque: verifica si hay un JWT guardado y decide la ruta.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -35,9 +35,8 @@ class _SplashScreenState extends State<SplashScreen>
     _verificarSesion();
   }
 
-  /// Simula la lectura/validación del token y redirige.
+  /// Lee y valida el token guardado, y redirige según si hay sesión.
   Future<void> _verificarSesion() async {
-    // Simula I/O de almacenamiento seguro + validación JWT.
     final haySesion = await SessionService.instance.verificarTokenSesion();
     if (!mounted) return;
 

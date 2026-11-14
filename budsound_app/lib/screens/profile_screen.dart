@@ -16,8 +16,10 @@ import '../services/event_service.dart';
 import '../services/mp_connect_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/clp_format.dart';
 import '../utils/image_data_url.dart';
 import '../widgets/budsound_text_field.dart';
+import '../widgets/fade_slide_in.dart';
 import '../widgets/glow_logo.dart';
 import '../widgets/neon_gradient_button.dart';
 import 'participant_history_screen.dart';
@@ -568,28 +570,45 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 100),
             child: Column(
               children: [
-                _tarjetaDatos(esDj, usuario?.nombreArtistico),
+                FadeSlideIn(
+                  child: _tarjetaDatos(esDj, usuario?.nombreArtistico),
+                ),
                 if (esDj) ...[
                   const SizedBox(height: 16),
-                  _tarjetaCobros(),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 60),
+                    child: _tarjetaCobros(),
+                  ),
                   if (_cargandoStats ||
                       (_statsGeneral != null && _statsGeneral!.isNotEmpty)) ...[
                     const SizedBox(height: 16),
-                    _tarjetaEstadisticasDj(),
+                    FadeSlideIn(
+                      delay: const Duration(milliseconds: 120),
+                      child: _tarjetaEstadisticasDj(),
+                    ),
                   ],
                 ],
                 if (!esDj) ...[
                   const SizedBox(height: 16),
-                  _tarjetaHistorial(),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 60),
+                    child: _tarjetaHistorial(),
+                  ),
                 ],
                 const SizedBox(height: 16),
-                _tarjetaAccesibilidad(),
+                FadeSlideIn(
+                  delay: const Duration(milliseconds: 180),
+                  child: _tarjetaAccesibilidad(),
+                ),
                 const SizedBox(height: 16),
-                _fila(
-                  'Sesión',
-                  sesion.hasSession
-                      ? 'JWT restaurado en este dispositivo'
-                      : '—',
+                FadeSlideIn(
+                  delay: const Duration(milliseconds: 240),
+                  child: _fila(
+                    'Sesión',
+                    sesion.hasSession
+                        ? 'Iniciada y guardada en este dispositivo'
+                        : '—',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -815,7 +834,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     final stats = _statsGeneral ?? const {};
     final eventos = stats['eventos_totales'] ?? 0;
     final aceptadas = stats['solicitudes_aceptadas'] ?? 0;
-    final recaudado = stats['recaudacion_neta_clp'] ?? 0;
+    final recaudado = (stats['recaudacion_neta_clp'] as num?) ?? 0;
 
     return Container(
       width: double.infinity,
@@ -868,7 +887,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                     Expanded(
                       child: _estadisticaTile(
                         icono: Icons.savings_rounded,
-                        valor: '\$$recaudado',
+                        valor: formatearClp(recaudado),
                         etiqueta: 'Recaudado',
                       ),
                     ),

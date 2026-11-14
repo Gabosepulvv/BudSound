@@ -80,12 +80,15 @@ class _ShellScreenState extends State<ShellScreen> {
           body: IndexedStack(
             index: _indice,
             children: esDj
-                ? const [LiveScreen(), ProfileScreen()]
+                // ignore: prefer_const_constructors
+                ? [LiveScreen(), ProfileScreen()]
                 : [
                     InicioScreen(
                         key: ValueKey(_inicioTick), onIrAEnVivo: _irAEnVivo),
-                    const LiveScreen(),
-                    const ProfileScreen(),
+                    // ignore: prefer_const_constructors
+                    LiveScreen(),
+                    // ignore: prefer_const_constructors
+                    ProfileScreen(),
                   ],
           ),
           bottomNavigationBar: _BarraFlotante(
