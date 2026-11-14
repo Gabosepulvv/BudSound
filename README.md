@@ -10,7 +10,7 @@ En discotecas, bares y eventos en vivo, el público interrumpe físicamente
 al DJ para pedir canciones — sin orden, sin registro y sin que el DJ
 mantenga el control sobre su propio set. BudSound reemplaza eso por una
 cola digital en tiempo real: el asistente escanea el QR del evento, pide
-una canción con una propina opcional, y el DJ decide libremente si la
+una canción con una propina obligatoria, y el DJ decide libremente si la
 acepta o la rechaza.
 
 ## Integrantes y roles

@@ -1,7 +1,7 @@
-# budsound
+# BudSound
 
 App móvil (Flutter) para pedir canciones a un DJ en eventos en vivo
-mediante un código QR, con una propina opcional al DJ. Una sola base de
+mediante un código QR, con una propina obligatoria al DJ. Una sola base de
 código para los dos roles (Participante y DJ) — la interfaz cambia según
 el rol de la cuenta.
 

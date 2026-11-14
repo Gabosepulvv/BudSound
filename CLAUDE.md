@@ -89,17 +89,22 @@ los Términos de Servicio de Spotify y YouTube. Por eso:
     aprobación para poder demostrar el flujo sin credenciales reales.
 - **API musical:** iTunes Search API (gratuita, sin key), consumida solo
   desde el backend (`GET /api/songs/search`).
-- **Login con Google:** implementado en código (`POST /auth/google` en el
-  backend, `GoogleSignIn` + selector de rol en `LoginScreen`), pero
-  **bloqueado hasta crear el proyecto en Google Cloud Console** — ver
-  sección "Login con Google — setup pendiente" más abajo. Mientras no haya
-  Client ID configurado, el botón muestra un aviso explícito en vez de
-  intentar un flujo que fallaría.
-- **Hosting:** Railway (capa gratuita). Aún no se ha creado el proyecto.
+- **Login con Google:** implementado y configurado (`POST /auth/google`
+  en el backend, `GoogleSignIn` + selector de rol en `LoginScreen`) — ver
+  sección "Login con Google" más abajo para el detalle de las
+  credenciales. Antes de cada `flutter build apk`/`flutter run` hay que
+  pasar `--dart-define=GOOGLE_SERVER_CLIENT_ID=...`, o el botón muestra un
+  aviso en vez de intentar un flujo roto. Además, `_googleSignIn.signOut()`
+  se llama antes de cada `signIn()` (`auth_service.dart`) para que el
+  selector de cuenta nativo siempre aparezca, en vez de reusar en
+  silencio la última cuenta de Google con sesión en el dispositivo.
+- **Hosting:** Railway (backend + PostgreSQL), desplegado en
+  `budsound-production.up.railway.app` — ver `RAILWAY_DEPLOY.md`.
 - **QR:** `qr_flutter` para generarlo (DJ), `mobile_scanner` para leerlo
   (Participante), con botón de linterna para lugares con poca luz —
-  pinneado en `^4.0.1` sin una razón fuerte para no subir de versión más
-  adelante (no es por ningún bug conocido del paquete).
+  actualizado a `^7.4.2` (el pin viejo en `^4.0.1` llevaba más de 2 años
+  de atraso y causaba pantalla negra al escanear en varios celulares;
+  ver DECISIONES_TECNICAS.md).
 
 ## Arquitectura — regla clave
 
@@ -154,9 +159,10 @@ cliente, pago por transferencia bancaria.
 
 ## Modelo de negocio
 
-Gratis para el DJ. BudSound cobra una comisión de 5%–10% sobre lo recaudado
-en cada evento, aplicada automáticamente en cada transacción aceptada.
-Configurable vía `BUDSOUND_COMMISSION_RATE` en el backend (default 8%).
+Gratis para el DJ. BudSound cobra una comisión de 10% sobre lo recaudado
+en cada evento, aplicada automáticamente en cada transacción aceptada
+(subida desde 8% el 2026-11-14, decisión del equipo). Configurable vía
+`BUDSOUND_COMMISSION_RATE` en el backend.
 
 ## Riesgos nuevos y mitigaciones (post Fase 1)
 
@@ -197,11 +203,20 @@ ese plazo o el dinero queda en un limbo.
   para integrantes del equipo que no tengan sus propias credenciales
   reales en su `.env` local (`mercadopagoService.credencialesListas()`
   decide cuál camino tomar).
-- **Pendiente:** split de pagos real (Opción A, OAuth marketplace por DJ)
-  — sigue sin implementar, documentado como decisión tomada pero no
-  construida (ver riesgo "¿A quién le llega la plata primero?" más abajo).
-  Con la cuenta única de prueba actual no hay forma de probarlo (haría
-  falta una cuenta de MercadoPago de prueba por cada DJ).
+- **Split de pagos real (Opción A, OAuth marketplace por DJ):**
+  implementado y configurado en producción — ver riesgo "¿A quién le
+  llega la plata primero?" más abajo y la sección "Split de pagos por DJ".
+- **Probar el pago con tarjetas de prueba (2026-11-13):** después de
+  meses de "Unauthorized use of live credentials"/"Invalid users
+  involved" con la cuenta de prueba del proyecto, se encontró la causa
+  real — ver DECISIONES_TECNICAS.md, decisión 43. Para que el flujo
+  funcione en sandbox: (1) usar las credenciales `TEST-...` de la
+  aplicación **BudSound-Sandbox** (no las de la app "BudSound" vieja,
+  que están rotas — devuelven `live_mode: true` pese a mostrarse como
+  "de prueba"), y (2) el Participante de prueba debe registrarse con un
+  correo cualquiera normal, nunca con una "Cuenta de prueba" de
+  MercadoPago (`test_user_...@testuser.com`) ni con un dominio inventado
+  tipo `.local`.
 
 ### 2. Congestión de red y desconexión en el evento
 
@@ -347,68 +362,60 @@ entradas 16-19):
   status — un `ApiError(503, ...)` también es intencional y su mensaje es
   seguro de mostrar, aunque 503 sea "quinientos".)
 
-## Split de pagos por DJ — setup pendiente
+## Split de pagos por DJ
 
-El código ya está (backend y app — ver riesgo 7 más arriba), pero no
-funciona todavía porque hace falta un segundo par de credenciales de
-MercadoPago (distinto del Access Token/Public Key que ya se usa para
-cobrar propinas):
+Configurado y funcionando en producción (`MERCADOPAGO_CLIENT_ID` /
+`MERCADOPAGO_CLIENT_SECRET` en Railway, pestaña **OAuth** de las
+credenciales de la aplicación en el panel de MercadoPago — distintas del
+Access Token/Public Key que se usa para cobrar en la cuenta central).
 
-1. En el panel de MercadoPago, dentro de tu aplicación → **Credenciales** →
-   pestaña **OAuth** (no la de "Credenciales de producción/prueba" que ya
-   se usó antes). Ahí están el **Client ID** y el **Client Secret** del
-   flujo OAuth.
-2. En `budsound_backend/.env`:
-   - `MERCADOPAGO_CLIENT_ID=...`
-   - `MERCADOPAGO_CLIENT_SECRET=...`
-3. `PUBLIC_URL` (la misma variable que ya existe para el correo de
-   verificación) tiene que apuntar a donde el backend sea alcanzable desde
-   afuera — MercadoPago redirige ahí
-   (`$PUBLIC_URL/api/dj/mercadopago/callback`) después de que el DJ
-   autoriza la conexión. En local no sirve de mucho por la misma razón que
-   con el correo (el navegador del DJ no puede llegar a tu `localhost`);
-   cobra sentido real con Railway desplegado.
-4. Con eso puesto, cualquier DJ puede ir a **Perfil → Cobros → Conectar
-   MercadoPago**, lo que abre el login de MercadoPago en el navegador del
-   celular (nunca dentro de la app). Al autorizar, MercadoPago lo manda de
-   vuelta a una página del backend que confirma la conexión y le pide
-   volver a la app.
-5. Probar: con el DJ conectado, una propina de prueba en uno de sus
-   eventos debería crear el pago en SU cuenta de MercadoPago (revisar en
-   su propio panel de "Actividad"), con la comisión de BudSound retenida
-   aparte.
+Cualquier DJ puede ir a **Perfil → Cobros → Conectar MercadoPago**, lo
+que abre el login de MercadoPago en el navegador del celular (nunca
+dentro de la app). Al autorizar, MercadoPago lo manda de vuelta a
+`$PUBLIC_URL/api/dj/mercadopago/callback`.
 
-## Verificación de correo al registrarse — setup pendiente
+**Ojo con esto si se mueve a otro dominio (ej. otro despliegue de
+Railway):** la URL de redirección tiene que estar registrada
+exactamente — carácter por carácter — en el panel de MercadoPago
+(**Configuración de la aplicación → Configuración avanzada → "Agrega la
+URL de redireccionamiento"**), para la app de OAuth específica (no la de
+Access Token/Public Key). Si no coincide, MercadoPago devuelve
+`"Invalid request parameters"` al intentar conectar — no es un error de
+nuestro código, es un paso de configuración manual en su panel que hay
+que repetir si cambia el dominio. También verificar que la variable
+`PUBLIC_URL` en Railway sea la URL limpia (sin el nombre de la variable
+pegado adentro por error de copy-paste — ya pasó una vez).
 
-Igual que MercadoPago y Google: el código ya está, pero mientras no haya
-credenciales SMTP en `budsound_backend/.env`, el registro no exige
-verificar el correo (se crea la cuenta y queda logueada de una, como
-antes). Para activarlo:
+## Verificación de correo al registrarse
 
-1. Conseguir credenciales SMTP. La opción más simple para probar: Gmail
-   con una
-   ["contraseña de aplicación"](https://myaccount.google.com/apppasswords)
-   (no la contraseña normal de la cuenta — Gmail exige 2FA activado para
-   poder generarla).
-2. En `budsound_backend/.env`: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`,
-   `SMTP_USER=<tu correo>`, `SMTP_PASS=<la contraseña de aplicación>`.
-3. `PUBLIC_URL` debe apuntar a donde el backend sea alcanzable desde
-   afuera (el link del correo se arma con esto) — en local no sirve de
-   mucho porque el celular de quien reciba el correo no puede llegar a tu
-   `localhost`; esto cobra sentido real recién con Railway desplegado (ver
-   RAILWAY_DEPLOY.md), seteando `PUBLIC_URL` al dominio que genera ahí.
-4. Con eso puesto, `POST /auth/register` deja de devolver `token` de
-   inmediato: devuelve `{ requiereVerificacion: true, email }` y la
-   persona debe tocar el link del correo antes de poder iniciar sesión.
+Implementado vía la API HTTP de Brevo (no SMTP directo — Railway bloquea
+los puertos SMTP salientes, ver retrospectiva Sprint 5 → Sprint 6).
+Mientras no haya `BREVO_API_KEY` en el entorno, el registro no exige
+verificar el correo (se crea la cuenta y queda logueada de una) — mismo
+patrón resiliente que el resto de las integraciones.
 
-## Login con Google — setup pendiente
+**Estado actual (temporal):** `BREVO_API_KEY` está apagada a propósito en
+Railway mientras se prueba el flujo de pago real de MercadoPago con
+cuentas de prueba (que no pueden recibir correos reales de verificación).
+Reactivarla antes de la entrega/presentación final: Railway → servicio
+BudSound → Variables → volver a poner el valor de `BREVO_API_KEY` →
+Deploy.
 
-El código ya está (backend y app), pero no funciona todavía porque hace
-falta crear un proyecto en
-[Google Cloud Console](https://console.cloud.google.com/) y generar dos
-credenciales OAuth. Cualquiera del equipo con acceso a una cuenta de Google
-puede hacerlo — no requiere pagar nada (esto es gratis, a diferencia de
-MercadoPago):
+Para configurarla desde cero: `BREVO_API_KEY`, `EMAIL_SENDER`,
+`EMAIL_SENDER_NAME` en las variables del backend — `PUBLIC_URL` (la
+misma que usa el split de pagos por DJ) arma el link del correo de
+verificación, así que tiene que apuntar al dominio real desde donde se
+pruebe. Con eso puesto, `POST /auth/register` deja de devolver `token`
+de inmediato: devuelve `{ requiereVerificacion: true, email }` y la
+persona debe tocar el link del correo antes de poder iniciar sesión.
+
+## Login con Google
+
+Ya configurado y funcionando en producción. El proyecto en
+[Google Cloud Console](https://console.cloud.google.com/) y las
+credenciales OAuth ya existen — esta sección queda como referencia de
+cómo se armó, útil si alguien del equipo necesita agregar su propio
+keystore de debug para probar en una máquina nueva:
 
 1. Crear un proyecto nuevo (o usar uno existente) en Google Cloud Console.
 2. **Pantalla de consentimiento OAuth:** configurarla en modo "Externo",

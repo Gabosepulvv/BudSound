@@ -920,18 +920,15 @@ afuera hacia adentro):**
   página para que lo use en su `fetch()`. El WebView ya no recibe NINGÚN
   token de BudSound.
 
-**Hallazgo aparte (no relacionado, pero se encontró al probar):** las
-credenciales de MercadoPago en `.env` son de **producción**
-(`MERCADOPAGO_ACCESS_TOKEN` empieza con `APP_USR-`), no de sandbox
-(`TEST-...`). Por eso, aunque el cuelgue ya esté resuelto, pagar con una
-tarjeta de prueba publicada (ej. `5416 7526 0258 2580` / titular `APRO`)
-va a seguir fallando con `"Unauthorized use of live credentials"` — es
-esperado, MercadoPago no deja usar tarjetas de prueba con credenciales
-reales. Para probar el flujo completo hace falta reemplazar
-`MERCADOPAGO_ACCESS_TOKEN`/`MERCADOPAGO_PUBLIC_KEY` en `.env` por las de
-la pestaña **Credenciales de prueba** del panel de MercadoPago (no las de
-producción que ya se usaron) — ver `.env.example`, que ya documentaba
-esto correctamente con el prefijo `TEST-`.
+**Hallazgo aparte (no relacionado, pero se encontró al probar) — CORREGIDO
+en la decisión 43, dejar esto solo como registro histórico:** en su
+momento se asumió que bastaba con ir a la pestaña "Credenciales de
+prueba" del panel para arreglar el `"Unauthorized use of live
+credentials"`. Resultó ser más complicado: esa pestaña, en la aplicación
+que se venía usando, devolvía credenciales con `live_mode: true` pese a
+mostrarse como "de prueba" — un problema de esa aplicación puntual, no
+solucionable sin crear una aplicación nueva. Ver decisión 43 para la
+causa real y la solución que sí funciona.
 
 **Por qué importa para la defensa:** cuando un `fetch()` dentro de un
 WebView se comporta distinto que el mismo request hecho por Dart o por
@@ -1269,6 +1266,86 @@ mensaje claro de "imagen muy pesada". Se subió el límite global a 4mb
 (con margen para el resto del body). Moraleja para la próxima vez que se
 suba un límite de tamaño de archivo: revisar también el límite del body
 parser global, no solo el límite propio del campo.
+
+---
+
+## 43. "Unauthorized use of live credentials" / "Invalid users involved": la causa real, tras meses de sospechar del código (2026-11-13)
+
+**Contexto:** la entrada 13 (y el hallazgo aparte ahí documentado) asumía
+que el problema era simplemente que `.env` tenía credenciales de
+producción (`APP_USR-...`) en vez de las de prueba (`TEST-...`), y que
+bastaba con ir a la pestaña "Credenciales de prueba" del panel de
+MercadoPago para arreglarlo. **Esa parte es incorrecta** — hoy se
+encontró la causa real, confirmada llamando directo a la API de
+MercadoPago (sin pasar por nuestro backend, para descartar cualquier bug
+de nuestro lado):
+
+1. La pestaña "Credenciales de prueba" de la aplicación "BudSound"
+   (la que se venía usando) sí mostraba un Public Key/Access Token con
+   pinta de credenciales de prueba, pero al tokenizar una tarjeta con esa
+   Public Key, la respuesta de MercadoPago traía `"live_mode": true`. Es
+   decir: el panel las etiquetaba como "de prueba", pero la API las trata
+   como credenciales reales — una inconsistencia de esa aplicación en
+   particular dentro de MercadoPago, no de nuestro código. (Se comparó
+   contra la app "BudSound Marketplace", creada antes para el OAuth del
+   split de pagos, cuya pestaña de prueba sí trae un Public Key `TEST-...`
+   genuino con `live_mode: false` — mismo panel, misma cuenta, aplicación
+   distinta, comportamiento distinto.)
+2. Por separado, **el "Invalid users involved" no tiene que ver con los
+   roles comprador/vendedor cruzados** que se sospechaba en la sesión
+   anterior (ver comentario viejo en `.env`). La causa real: el
+   `payer.email` que se manda a `/v1/payments` (que es el email de login
+   del Participante en BudSound, no algo que se escribe en el formulario
+   de tarjeta — ver `request.controller.js`, `autorizarPago`) **no puede
+   ser una de las "Cuentas de prueba" especiales** de MercadoPago
+   (`test_user_...@testuser.com`) cuando se usan credenciales `TEST-`
+   normales. Esas cuentas de prueba son para un modo de prueba distinto
+   (vía OAuth, con credenciales `APP_USR-` "de cuenta de prueba" — el
+   mismo patrón que usa el split de pagos por DJ). Mezclar ambos modos
+   (credenciales `TEST-` + email de una Cuenta de prueba) da "Invalid
+   users involved"; mezclar al revés (credenciales OAuth de Cuenta de
+   prueba + tarjeta de prueba publicada) da el mismo error por una razón
+   distinta (la tarjeta de prueba pública no es válida bajo un token
+   `live_mode: true`, aunque la cuenta detrás sea ficticia). Se confirmó
+   probando las cuatro combinaciones posibles contra la API real.
+
+**La solución que sí funciona (probada hoy, pago autorizado y capturado
+con éxito contra la API real de MercadoPago):**
+- Crear una aplicación nueva de tipo Checkout API / API de Payments
+  (`BudSound-Sandbox`) — una aplicación recién creada sí trae un Public
+  Key/Access Token `TEST-...` genuino (`live_mode: false` confirmado).
+- El Participante de prueba se registra con un correo **cualquiera**,
+  normal (ej. `participante@ejemplo.com`), nunca con un dominio inventado
+  tipo `.local` (MercadoPago valida el formato y lo rechaza con
+  `"payer.email must be a valid email"`) ni con una Cuenta de prueba de
+  MercadoPago.
+- Las Cuentas de prueba (`Cuentas de prueba` en el panel) se reservan
+  para probar el flujo de split de pagos por DJ vía OAuth (conectar como
+  vendedor de prueba) — ahí sí hace falta usar esas cuentas, y el token
+  resultante es `APP_USR-...`/`live_mode: true` por diseño.
+
+**Por qué importa para la defensa:** el equipo llevaba meses atribuyendo
+este error a la cuenta de MercadoPago del proyecto en general ("parece un
+tema de esa cuenta en particular, no del código" — nota vieja en `.env`),
+sin aislar la variable correcta. La lección: cuando un proveedor externo
+da un error poco específico, conviene llamar a su API directo (con
+`curl`, sin pasar por el backend propio) para descartar el código como
+variable antes de seguir ajustando configuración a ciegas — así se
+encontró en una sola sesión algo que no se había encontrado en varias
+anteriores.
+
+**Detalle aparte, encontrado al probar el formulario de pago desde un
+navegador de escritorio (no el WebView de la app):** `/pay/checkout`
+nunca declaró una Content-Security-Policy propia, así que usa la que pone
+`helmet()` por defecto (`script-src 'self'`), que bloquea tanto el SDK de
+MercadoPago (`sdk.mercadopago.com`) como el script inline de la propia
+página. Nunca se notó porque el WebView de Android, a diferencia de un
+navegador de escritorio, no hace cumplir ese header — el formulario
+"funciona" ahí de pura casualidad de la plataforma, no porque el header
+esté bien puesto. Sigue pendiente ponerle a esa ruta una CSP explícita
+que permita justamente lo que necesita (el dominio del SDK + el script
+inline con un hash o nonce), en vez de depender de que el WebView lo
+ignore.
 
 ---
 

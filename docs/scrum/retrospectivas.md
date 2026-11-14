@@ -72,31 +72,59 @@
   de entorno sensibles para blindar contra ese tipo de error de copiado a
   futuro.
 
-## Limitación conocida: pago real de punta a punta con una cuenta de DJ real
+## Limitación conocida: pago real de punta a punta con MercadoPago
 
 El split de pagos por DJ (OAuth de MercadoPago) se implementó y se probó
-con una cuenta real conectada. El flujo completo (autorizar → capturar)
-se construyó y se verificó contra la API real de MercadoPago, pero un
-intento de pago real con esa cuenta conectada falló con un error
-genérico ("Params Error") de MercadoPago.
+a fondo contra la API real de MercadoPago, intentando pagos reales de
+punta a punta. Esto sacó a la luz una serie de bugs reales del lado de
+BudSound que no se notaban en el modo de pago simulado, porque ese modo
+nunca llega a llamar a la API real:
 
-Se investigó a fondo, reproduciendo la llamada directa a la API: la causa
-no fue un bug de BudSound, sino que la cuenta de MercadoPago de esa DJ
-(una cuenta personal real, no una de prueba) no está habilitada por
-MercadoPago para **recibir** pagos como vendedora todavía — su propio
-`GET /users/me` devuelve `"sell":{"allow":false,"codes":
-["rejected_by_regulations"]}`. Es una restricción de verificación/
-regulación que MercadoPago le exige directamente a esa cuenta (típicamente
-formalizar o declarar la actividad ante impuestos), completamente fuera
-del control del equipo y del código de BudSound.
+- Faltaba `issuer_id` (necesario para tarjetas cuyo rango de numeración
+  comparten varios bancos emisores).
+- Faltaba `payer.identification` (el RUT del pagador), que MercadoPago
+  exige para pagos reales con tarjeta en Chile.
+- Faltaba `payer.email`: el token de checkout acotado de 15 minutos (ver
+  revisión de seguridad, más abajo) nunca incluyó el correo del
+  Participante en su payload, así que se perdía justo en el camino real
+  de pago (no en el simulado).
+- Se descubrió que MercadoPago no permite captura diferida (autorizar
+  ahora, cobrar cuando el DJ acepta — la base del cobro condicionado de
+  BudSound) con tarjetas de **débito**, solo con crédito — es una
+  restricción de MercadoPago, no un bug; ahora se le avisa claro al
+  Participante si intenta pagar con débito.
 
-Como resolver eso depende de que la propia DJ complete ese trámite con
-MercadoPago — y no había urgencia para desbloquearlo durante el proyecto
-— el equipo decidió explícitamente no bloquearse esperando eso, y seguir
-probando y demostrando el flujo completo con el modo de pago simulado en
-su lugar (ver Sprint 5 → Sprint 6). La integración técnica del lado de
-BudSound está terminada y probada; lo que queda pendiente es ajeno al
-proyecto.
+Los cuatro se corrigieron y se confirmaron con un panel de diagnóstico en
+tiempo real construido para esto (ver `GET /api/debug/stream`), que
+muestra en vivo el body exacto enviado a MercadoPago y su respuesta.
+
+Dos cosas quedaron fuera del control del equipo, documentadas para la
+defensa:
+
+1. **Cuenta real de un DJ:** la cuenta personal de MercadoPago de una DJ
+   del equipo no está habilitada por MercadoPago para **recibir** pagos
+   todavía — su propio `GET /users/me` devuelve
+   `"sell":{"allow":false,"codes":["rejected_by_regulations"]}`, una
+   restricción de verificación/regulación que MercadoPago le exige
+   directamente a esa cuenta (típicamente formalizar o declarar la
+   actividad ante impuestos).
+2. **Ambiente de pruebas (sandbox) de MercadoPago:** al intentar simular
+   el flujo completo con cuentas y tarjetas de prueba oficiales de
+   MercadoPago (para demostrar el cobro condicionado sin dinero real),
+   apareció un error distinto y no documentado públicamente por
+   MercadoPago (`"Invalid users involved"`) al combinar una cuenta
+   vendedora y una compradora de prueba con el split de pagos por DJ
+   activo. Se descartaron varias causas (correo del pagador, credenciales
+   de prueba vs. reales, qué cuenta vendedora de prueba usar) sin
+   encontrar la combinación exacta que MercadoPago espera — quedó
+   pendiente al cierre del proyecto.
+
+Como ninguna de las dos depende de corregir código de BudSound, el
+equipo decidió explícitamente no bloquearse esperando resolverlas, y
+seguir demostrando el flujo completo con el modo de pago simulado para
+la presentación (ver Sprint 5 → Sprint 6). La integración técnica del
+lado de BudSound está terminada, probada contra la API real, y los bugs
+propios que aparecieron ya están corregidos.
 
 ## Cierre del proyecto
 
