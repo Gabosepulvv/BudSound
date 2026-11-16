@@ -12,6 +12,12 @@ import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Por defecto, si una pantalla falla al dibujarse, Flutter muestra un
+  // cuadro gris sin ningún mensaje en el APK instalado (release) — así no
+  // hay forma de saber qué falló sin conectar el celular al computador.
+  // Esto muestra el error en texto, en cualquier modo, para poder
+  // reportarlo con una simple captura de pantalla.
+  ErrorWidget.builder = (details) => _ErrorVisible(details);
   // Restaura JWT y perfil antes de decidir splash → login/home.
   await SessionService.instance.cargarDesdeDisco();
   // Restaura si el modo daltónico estaba activo, antes del primer frame
@@ -47,6 +53,33 @@ class BudsoundApp extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// Reemplaza el cuadro gris/rojo por defecto de Flutter cuando un widget
+/// falla al construirse — ver `ErrorWidget.builder` en [main].
+class _ErrorVisible extends StatelessWidget {
+  const _ErrorVisible(this.details);
+
+  final FlutterErrorDetails details;
+
+  @override
+  Widget build(BuildContext context) {
+    final pila = details.stack?.toString().split('\n').take(6).join('\n');
+    return Material(
+      color: const Color(0xFF17151F),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: SelectableText(
+            'Ocurrió un error al mostrar esta pantalla.\n'
+            'Sácale una captura y envíasela al equipo.\n\n'
+            '${details.exceptionAsString()}\n\n${pila ?? ''}',
+            style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 12),
+          ),
+        ),
+      ),
     );
   }
 }
