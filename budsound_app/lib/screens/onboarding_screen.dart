@@ -178,10 +178,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Text(
             paso.titulo,
             textAlign: TextAlign.center,
-            style: AppTheme.fontDisplay(
+            style: AppTheme.title(
               color: AppColors.white,
               fontSize: 21,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 14),

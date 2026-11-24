@@ -4,6 +4,7 @@ const eventModel = require('../models/event.model');
 const transactionModel = require('../models/transaction.model');
 const mercadopagoService = require('../services/mercadopago.service');
 const mercadopagoOauthService = require('../services/mercadopago-oauth.service');
+const { asegurarCustomerId } = require('../services/mp-customer.helper');
 const deezerService = require('../services/deezer.service');
 const debugStream = require('../services/debug-stream.service');
 const env = require('../config/env');
@@ -145,6 +146,17 @@ const crear = asyncHandler(async (req, res) => {
         mpPaymentId: String(pago.id),
         status: 'AUTORIZADA',
       });
+      // Guarda la tarjeta para que la próxima propina solo pida el CVV
+      // (ver DECISIONES_TECNICAS.md #45) — nunca debe tirar abajo un pago
+      // que ya se autorizó bien, por eso va en su propio try/catch, aparte
+      // del try/catch de arriba que maneja errores de MercadoPago al
+      // autorizar.
+      try {
+        const customerId = await asegurarCustomerId(req.user.sub, req.user.email);
+        await mercadopagoService.guardarTarjetaEnCustomer(customerId, cardToken);
+      } catch (error) {
+        console.error('No se pudo guardar la tarjeta para la próxima propina:', error.message);
+      }
       debugStream.emitir('mp_success', {
         requestId: request.id,
         titulo: request.titulo,

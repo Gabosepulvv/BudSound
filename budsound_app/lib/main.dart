@@ -33,7 +33,7 @@ class BudsoundApp extends StatelessWidget {
       listenable: ColorblindModeService.instance,
       builder: (context, _) {
         return MaterialApp(
-          title: 'budsound',
+          title: 'BudSound',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.dark,
           themeMode: ThemeMode.dark,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_motion.dart';
+
 /// Da feedback táctil (se achica levemente al presionar) a tarjetas y filas
 /// que no son botones Material estándar — como los resultados de búsqueda.
 class PressableScale extends StatefulWidget {
@@ -35,7 +37,7 @@ class _PressableScaleState extends State<PressableScale> {
       onTapCancel: () => _setPresionado(false),
       child: AnimatedScale(
         scale: _presionado ? widget.scaleDown : 1,
-        duration: const Duration(milliseconds: 120),
+        duration: AppMotion.of(context).fast,
         curve: Curves.easeOut,
         child: widget.child,
       ),

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_motion.dart';
+
 /// Entrada animada (fade + deslizamiento sutil hacia arriba) para que
 /// tarjetas y listas no aparezcan de golpe. [delay] permite escalonar
-/// varios ítems de una lista para un efecto en cascada.
+/// varios ítems de una lista para un efecto en cascada — usa
+/// [AppMotion.escalonado] para calcularlo (40ms por ítem, tope de 8).
 class FadeSlideIn extends StatefulWidget {
   const FadeSlideIn({
     super.key,
     required this.child,
     this.delay = Duration.zero,
     this.duration = const Duration(milliseconds: 420),
-    this.offset = 18,
+    this.offset = 12,
   });
 
   final Widget child;

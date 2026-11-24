@@ -68,6 +68,16 @@ CREATE TABLE users (
   -- vista, solo un ID numérico).
   mp_nickname          TEXT,
   mp_email             TEXT,
+  -- "Customer" de MercadoPago (solo tiene sentido para un Participante,
+  -- que es quien paga) — ahí vive la tarjeta guardada para que la próxima
+  -- propina no pida llenar el formulario de nuevo, solo el CVV. Se crea
+  -- una sola vez contra la cuenta CENTRAL de BudSound (nunca la de un DJ
+  -- conectado): el Card Payment Brick siempre tokeniza con la Public Key
+  -- central (ver checkout.controller.js), sin importar si el pago después
+  -- se autoriza en la cuenta del DJ vía `application_fee` — por eso la
+  -- tarjeta guardada no necesita ser "por DJ", una sola alcanza para
+  -- cualquier evento. Ver DECISIONES_TECNICAS.md.
+  mp_customer_id       TEXT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

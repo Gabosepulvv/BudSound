@@ -1349,6 +1349,330 @@ ignore.
 
 ---
 
+## 44. Rebranding "Cabina minimal" (2026-11-24) — en curso
+
+Cambio de identidad visual de `budsound_app/`: de la estética "club nocturno"
+(fondo violeta, glow, rosa/magenta + lima neón, Unbounded/Inter) a "Cabina
+minimal" — negro mate, un solo acento azul, ámbar reservado para "en vivo" y
+dinero, una sola familia tipográfica (Geist) y animaciones precisas sin
+rebote. Sin cambios de lógica de negocio, servicios ni backend — solo tema,
+widgets visuales y animaciones.
+
+**Completado en esta sesión:**
+
+- **Colores (`app_colors.dart`):** valores nuevos manteniendo los nombres
+  históricos (`limeGreen`, `success`, etc. — el rename a nombres semánticos
+  queda pendiente, ver más abajo) para no tocar los ~50 usos existentes.
+  Fondo `#0B0C0E`, superficie `#17191D` (+ `surfaceHigh` `#23262B` nueva),
+  acento azul `#3D8BFF`/`#3378E6`, ámbar `#FFB020` para "en vivo"/aceptada/
+  dinero. `onLime`/`onSuccess` ahora van en `#0B0C0E` (oscuro) porque el
+  acento y el ámbar nuevos son claros — antes eran blancos porque el acento
+  viejo (rosa) era oscuro. Se quitó `AppColors.glow` por completo (y con
+  eso `DarkNeonScaffold`/`AmbientLightsBackground` quedaron con fondo plano,
+  sin la mancha de luz flotante — se conservaron como wrappers vacíos para
+  no tocar las pantallas que los instancian).
+- **Modo daltónico:** los getters de color siguen existiendo (siguen
+  enganchados a `ColorblindModeService`) pero ambas ramas devuelven el mismo
+  valor — azul/ámbar ya se distinguen bien en protanopia/deuteranopia/
+  tritanopia, así que la paleta nueva no necesita una alternativa. **Propuesta
+  (no ejecutada todavía, pendiente de que el equipo la confirme):** eliminar
+  `ColorblindModeService` entero, el toggle en Perfil, y los getters en
+  `AppColors` (dejarlos `static const`) — hoy no cambian nada, así que son
+  código muerto. Falta decidir esto en equipo antes de borrarlo.
+- **Tipografía (`app_theme.dart`):** una sola familia, Geist (+ Geist Mono
+  para cifras). **Ojo con la versión de `google_fonts`:** la 9.0.0 (la
+  última en pub.dev al momento de este cambio) migró internamente a un
+  paquete nuevo llamado `material_ui`, que expone su propio `TextTheme`
+  incompatible con el `TextTheme` de `package:flutter/material.dart` —
+  causa un error de compilación real (`argument_type_not_assignable`) al
+  pasarle el `TextTheme` del `ThemeData` normal a
+  `GoogleFonts.geistTextTheme(...)`. Geist/Geist Mono ya existían desde la
+  7.0.0, sin esa dependencia — se fijó `google_fonts: ^7.1.0` en
+  `pubspec.yaml` a propósito, NO actualizar a 9.x mientras `google_fonts`
+  siga dependiendo de `material_ui` para esta app (revisar el CHANGELOG del
+  paquete antes de subir la versión en el futuro). Se agregaron
+  `AppTheme.title(...)` (texto: títulos, nombres de evento) y
+  `AppTheme.numeric(...)` (cifras: montos, códigos — con
+  `FontFeature.tabularFigures()` para que no salten de ancho) reemplazando
+  `AppTheme.fontDisplay(...)` en los 8 lugares que lo usaban. También
+  `AppTheme.wordmark(...)` específico para el logotipo "BudSound".
+- **Símbolo (`widgets/budsound_mark.dart`):** nuevo `BudSoundMark`, un
+  `CustomPainter` con 6 barras redondeadas (la "b" tipo forma de onda),
+  reemplaza la imagen `assets/brand/budsound_logo.jpg` de `GlowLogo` — que
+  ahora es un wrapper delgado sobre `BudSoundMark` para no tocar las 9
+  pantallas que lo instancian. Nota: con `showWordmark: true` el logotipo
+  ahora queda en fila (símbolo + "BudSound" a la derecha), antes era en
+  columna (símbolo arriba, texto abajo) — cambio de layout intencional
+  según el pedido.
+- **Botón CTA (`neon_gradient_button.dart`):** píldora de 56 de alto/28 de
+  radio (antes 54/27). Se quitaron las 5 llamadas que pasaban
+  `color: AppColors.success` / `colorTexto: AppColors.onSuccess` en
+  pantallas del Participante — ahora todas usan el acento azul por defecto,
+  igual que las del DJ (antes el Participante tenía su propio acento verde
+  separado del acento de marca).
+- **Barra inferior (`shell_screen.dart`):** antes era una píldora flotante
+  con márgenes e ícono activo sobre un círculo relleno, sin etiqueta visible.
+  Ahora es una barra plana de ancho completo (sin línea superior), con
+  ícono + etiqueta de texto siempre visible, y un punto azul de 5px arriba
+  de la etiqueta del tab activo (en vez del círculo relleno).
+- **Tarjetas de solicitud del DJ (`dj_queue_screen.dart`):** se quitó el
+  `border: Border.all(color: _colorEstado(...))` que coloreaba todo el
+  borde de la tarjeta según el estado — la "franja de color" que pedía
+  eliminarse. En su lugar, un punto de 8px (`_puntoEstado`) junto a la
+  carátula: azul mientras está en cola, ámbar apenas aceptada, gris cuando
+  ya quedó resuelta (reproducida/rechazada/cancelada). Radio de tarjeta
+  subido a 20 (antes 16/18) para alinear con el resto.
+
+**Barrido de tarjetas/chips (completado en una segunda pasada, mismo día):**
+
+- Radio normalizado a 20 en todas las tarjetas "de contenido" encontradas
+  (antes variaba entre 14, 16, 18 y 22): `profile_screen.dart` (historial de
+  propinas, datos, estadísticas DJ, cobros, accesibilidad),
+  `dj_events_screen.dart` (encabezado), `inicio_screen.dart` (encabezado
+  Participante), `participant_history_screen.dart` (resumen y solicitudes),
+  diálogo de monto en `participant_event_screen.dart` (y de paso se le quitó
+  el `boxShadow` que tenía).
+- Carátulas/miniaturas normalizadas a radio 12 (antes 8 o 10): avatar de
+  evento pasado en `profile_screen.dart`, carátula de solicitud y de
+  resultado de búsqueda en `participant_event_screen.dart`, ícono de
+  solicitud en `participant_history_screen.dart`.
+- Reemplazado el patrón "borde de color según estado" por el punto de 8px
+  (mismo que ya se había hecho en `dj_queue_screen.dart`) en
+  `participant_event_screen.dart`: `_tarjetaPendienteLocal` (punto gris,
+  "sin conexión") y `_tarjetaSolicitud` (azul en cola / ámbar aceptada /
+  rojo rechazada / gris cancelada).
+- `RoleSegmentedControl` (selector Participante/DJ en login y registro): se
+  quitó el `Border.all(color: AppColors.border)` del contenedor, ahora usa
+  `surfaceHigh` como fondo — mismo lenguaje que los botones secundarios.
+- Chips de propina (`_chipMonto` en `participant_event_screen.dart`):
+  reescritos como píldora de 44 de alto, radio 22. El seleccionado va en
+  `AppColors.white` (textPrimary) con texto en `AppColors.background` —
+  antes era un chip más chico con borde y fondo `AppColors.success`.
+- **Bordes que se dejaron a propósito** (no son "tarjetas", son
+  alertas/badges puntuales, no genéricos): el banner "Sin conexión" en
+  `dj_queue_screen.dart` (borde rojo, es una alerta), el chip de BPM
+  (borde lima sutil, es un badge chico) y el chip del temporizador del DJ
+  en `dj_timer_chip.dart` (borde que cambia a rojo si se acabó el tiempo —
+  emparenta con el efecto de animación #11 del pedido original, pendiente).
+
+**Animaciones (segunda sesión, mismo día) — `app_motion.dart` + 10 de los 13
+efectos del pedido original:**
+
+- **`theme/app_motion.dart` (nuevo):** tokens `fast`/`base`/`medium`/`slow`/
+  `count` (120/200/280/420/600ms) y curvas `enter`/`exit`/`state`/`progress`.
+  `AppMotion.of(context)` lee `MediaQuery.disableAnimations` ("reducir
+  movimiento" del sistema) y devuelve todas las duraciones en cero cuando
+  está activo — los widgets con loop (`LiveDot`, `LoadingPlaceholder`)
+  comprueban `AppMotion.of(context).reducida` para no repetirse.
+  `escalonado(indice)` calcula el delay de entrada de listas: 40ms por
+  ítem, tope de 8.
+- **Efecto 2 (entrada de listas):** `FadeSlideIn` bajó su offset a 12 (antes
+  18). Los 5 lugares que calculaban el delay a mano
+  (`Duration(milliseconds: 50 * i)`, etc.) ahora usan
+  `AppMotion.of(context).escalonado(i)` — `dj_queue_screen.dart` (cola y
+  resueltas), `participant_history_screen.dart`, `participant_event_screen.dart`
+  (resultados de búsqueda y "mis solicitudes").
+- **Efecto 3 (respuesta al toque):** `PressableScale` usa `AppMotion.fast`.
+  `NeonGradientButton` reescrito: `fast` para la escala, `base` para el
+  color de fondo, `HapticFeedback.lightImpact()` en cada toque habilitado, y
+  el texto/spinner ahora cruza con `AnimatedSwitcher` (`base`) en vez de
+  reemplazarse de golpe — ya cubre la mitad del efecto 8 ("Enviar a
+  cabina": el crossfade texto↔spinner).
+- **Efecto 4 (punto "en vivo"):** `widgets/live_dot.dart` (nuevo) — opacidad
+  1.0↔0.35 en loop de 1.6s, easeInOut. Aplicado en los dos chips "ACTIVO"
+  (`dj_events_screen.dart`, `inicio_screen.dart`) — de paso, el de
+  `dj_events_screen.dart` usaba el acento azul como fondo en vez de ámbar
+  (inconsistente con el de `inicio_screen.dart`, que ya estaba bien); quedó
+  como el resto: ámbar porque es un estado "en vivo"/dinero.
+- **Efecto 5 (splash):** `BudSoundMark` ahora acepta un `progreso` (lista de
+  0 a 1 por barra) — `BudSoundMark.progresoEscalonado(t)` calcula ese
+  progreso con 40ms de escalonado y 400ms de crecimiento por barra sobre un
+  `AnimationController` de 600ms. `splash_screen.dart` reescrito: barras
+  creciendo desde abajo, y al completarse dispara un segundo controller de
+  200ms que hace el fade-in del wordmark "BudSound" (antes el wordmark
+  aparecía de una, y el logo solo pulsaba de tamaño en loop).
+- **Efecto 7 (odómetro del monto):** en el diálogo de propina
+  (`participant_event_screen.dart._elegirMonto`), el monto grande ahora usa
+  `AnimatedSwitcher` con `SlideTransition` direccional (entra desde abajo si
+  subió, desde arriba si bajó) de 160ms — se trackea la dirección en una
+  variable local (`direccionMonto`) que se actualiza en los dos lugares
+  donde cambia el monto (chips predefinidos y el campo "Otro monto").
+- **Efecto 9 (nueva solicitud en la cola del DJ) — versión acotada:**
+  `widgets/nueva_solicitud_ring.dart` (nuevo) envuelve cada tarjeta
+  **pendiente** con un anillo azul de 1.5px que se desvanece en 1.2s +
+  `HapticFeedback.selectionClick()`, UNA sola vez por solicitud. Como
+  `_cargarCola()` reemplaza toda la lista en cada evento de socket (no hay
+  un `AnimatedList` real con inserts/removes), el truco es la `Key` estable
+  (`ValueKey('pendiente-${id}')`) en el `FadeSlideIn` de cada tarjeta:
+  Flutter solo crea un `State` nuevo (y dispara el anillo) para un id que
+  de verdad es nuevo en el árbol, no para los que ya estaban y se
+  redibujaron. Un flag `_primeraCarguaHecha` (recién pasa a `true` un frame
+  después de la primera carga, vía `addPostFrameCallback`) evita que TODAS
+  las solicitudes existentes "suenen" como nuevas la primera vez que el DJ
+  abre la pantalla.
+- **Efecto 11 (barra de tiempo restante):** `SolicitudCountdown` reescrito
+  — antes era solo texto; ahora agrega una barra fina de 3px debajo que
+  avanza con `TweenAnimationBuilder<double>` de 1s linear (sin saltos), y
+  bajo el minuto el color (ícono, texto y barra) hace un tween a `danger`
+  de 300ms más UN pulso de opacidad (ida y vuelta de `AnimationController`,
+  no loop) al cruzar el umbral.
+- **Efecto 12 (contador de recaudado):** `widgets/animated_count.dart`
+  (nuevo), `TweenAnimationBuilder<int>` con `AppMotion.count` (600ms) y
+  easeOutCubic. Aplicado a "Recaudación neta" en `dj_queue_screen.dart` y a
+  "Propinas aceptadas" en `participant_history_screen.dart`.
+- **Efecto 13 (placeholders de carga):** `widgets/loading_placeholder.dart`
+  (nuevo) — rectángulo `surface` con pulso de opacidad 0.5↔1.0 cada 1.2s
+  (nada de shimmer con degradado), más `LoadingPlaceholderList` para varios
+  apilados. Reemplaza el `CircularProgressIndicator` de pantalla completa
+  en `inicio_screen.dart`, `participant_history_screen.dart` y la cola de
+  `dj_queue_screen.dart` — los spinners chicos DENTRO de un botón
+  (`NeonGradientButton.loading`) no se tocaron, siguen siendo spinner.
+
+**Tercera pasada (mismo día) — los 3 efectos que quedaban:**
+
+- **Efecto 6 (forma de onda decorativa):** `widgets/song_waveform.dart`
+  (nuevo) — 44 barras de 4px, silueta pseudo-aleatoria pero determinista
+  (semilla = `solicitud.id.hashCode`, así cada canción se ve distinta pero
+  estable entre rebuilds), con entrada escalonada (15ms por barra,
+  easeOutCubic). `playedFraction` NO representa progreso real de audio —
+  es puramente decorativo y depende solo del estado de la solicitud:
+  pendiente → 0, aceptada → 0.45 (fijo, "viene en camino"), reproducida →
+  1. Integrado en `participant_event_screen.dart._tarjetaSolicitud`, debajo
+  de la fila principal (no se muestra si quedó rechazada/cancelada). La
+  barra "cabezal" (ámbar) marca el límite entre reproducida/pendiente.
+- **Efecto 8, la parte que faltaba:** `NeonGradientButton` ahora acepta
+  `exito` (muestra un ✓ con el mismo `AnimatedSwitcher` que ya usaba para
+  el spinner). En el diálogo de propina
+  (`participant_event_screen.dart._elegirMonto`), al validar bien:
+  `HapticFeedback.mediumImpact()` + 260ms mostrando el check antes de
+  cerrar el diálogo (antes se cerraba de inmediato al tocar "Enviar
+  propina"). La "ola" de la forma de onda específica del pedido original
+  no se implementó tal cual — el diálogo de propina y la tarjeta con la
+  forma de onda son pantallas/widgets distintos en la arquitectura actual
+  (el diálogo cierra y recién después aparece la tarjeta, no hay forma de
+  onda visible en el momento del check para hacerla "olear"). En su lugar,
+  la entrada escalonada del efecto 6 cumple un rol equivalente: las barras
+  de la tarjeta recién creada entran con movimiento apenas aparece, que es
+  el mismo instante en que el envío se confirmó.
+- **Efecto 10 (aceptar/rechazar con colapso):** `widgets/
+  resolucion_transition.dart` (nuevo). Como `_cargarCola()` sigue
+  reemplazando toda la lista de una (no hay `AnimatedList` real), se usó
+  un estado "optimista" transitorio: `DjQueueScreen._resolver` guarda
+  `id -> aceptó (bool)` en `_resolviendoOptimista` apenas la llamada a la
+  API confirma, espera 420ms (el tiempo que tarda la animación de salida)
+  y recién ahí llama a `_cargarCola()` — mientras tanto, la tarjeta sigue
+  renderizándose en "pendientes" (su `s.pendiente` real en el servidor
+  todavía no cambió) pero `ResolucionTransition` ya sabe el resultado y
+  juega: si fue rechazo, fade + desliza 24px a la izquierda y después se
+  colapsa (`AnimatedSize`); si fue aceptación, el punto de estado
+  (`_puntoEstado`) ya lee `_resolviendoOptimista` y pasa a ámbar de
+  inmediato (con `AnimatedContainer`, `base`) y la tarjeta se colapsa
+  igual, sin el deslizamiento. Mismo patrón de `Key` estable por id que el
+  efecto 9 para que la transición no se reinicie con cada rebuild.
+
+**Con esto, los 13 efectos del pedido original quedan todos implementados**
+(algunos con una adaptación razonada a la arquitectura real del proyecto,
+anotada arriba donde corresponde — en particular efectos 8 y 9, que
+originalmente suponían un `AnimatedList` que el flujo actual no tiene).
+
+**Pendiente de verdad (fuera del alcance de "animaciones"):**
+
+- Probar todo esto en un dispositivo real — nada de este trabajo se vio
+  corriendo en pantalla durante la sesión (sin acceso a `flutter run`/build
+  directo, ver regla de este repo). Antes de dar por buena la ruta
+  "Cabina minimal" hay que compilar e instalar.
+- Confirmar con el equipo la eliminación de `ColorblindModeService` (ver
+  arriba) y el rename de colores a nombres semánticos
+  (`limeGreen`→`accent`, etc., con refactor del IDE) — ambos quedan
+  pendientes a propósito, el pedido original los marca como "proponer, no
+  ejecutar".
+
+---
+
+## 45. Tarjetas guardadas de MercadoPago (2026-11-24)
+
+Implementa el plan que había quedado solo trazado el 2026-11-14 (ver
+memoria de proyecto `project-budsound-mercadopago-saved-cards`): que la
+próxima propina de un Participante solo pida el CVV, no el formulario
+completo de tarjeta otra vez.
+
+**La decisión pendiente que había quedado abierta — resuelta más simple de
+lo esperado:** el plan original dudaba entre "un `mp_customer_id` por cada
+par (Participante, DJ)" o "uno solo para la cuenta central". Al revisar
+`checkout.controller.js` encontramos que el Card Payment Brick **siempre**
+tokeniza la tarjeta con la Public Key de la cuenta CENTRAL de BudSound
+(`env.mercadopago.publicKey`), nunca con la del DJ — el split de pagos (ver
+riesgo "¿A quién le llega la plata primero?" en CLAUDE.md) solo entra en
+juego después, al autorizar el pago server-side con el `djAccessToken` del
+DJ conectado. Como el tokenizado (y por lo tanto cualquier tarjeta
+guardada) vive siempre del lado de la cuenta central, **un solo
+`mp_customer_id` por Participante alcanza para pagarle a cualquier DJ** —
+no hace falta un Customer por par. Esto simplifica el modelo de datos a
+una sola columna nueva en `users`.
+
+**Cómo quedó armado:**
+
+- `schema.sql` / producción: columna `mp_customer_id TEXT` en `users`
+  (agregada a mano en producción vía la consola de Railway — `ALTER TABLE
+  ... ADD COLUMN IF NOT EXISTS`, mismo patrón que las columnas de OAuth del
+  DJ en su momento; `migrate.js` no sirve para esto porque re-correr
+  `schema.sql` entero fallaría contra una tabla que ya existe).
+- `mercadopago.service.js`: `buscarOCrearCustomer({ email })` — busca por
+  correo (`GET /v1/customers/search`) antes de crear, porque MercadoPago no
+  deja crear dos Customers con el mismo correo. Siempre contra la cuenta
+  CENTRAL (nunca pasa `djAccessToken`), por la razón de arriba.
+  `listarTarjetasGuardadas`/`borrarTarjetaGuardada` para la pantalla de
+  Perfil.
+- `checkout.controller.js`: ahora recibe un `checkoutToken` opcional (el
+  mismo token de 15 minutos de `emitirTokenCheckout` que `McpCheckoutScreen`
+  ya pedía antes, pero que la página nunca usaba) — lo verifica, resuelve/
+  crea el Customer del Participante, y le pasa `customerId` + `email` al
+  Brick (`initialization.payer`). Si el token falta, está vencido, o
+  MercadoPago no responde, sigue sin `customerId`: el Brick cae solo al
+  formulario vacío de siempre (mismo patrón resiliente del resto del
+  proyecto). **Ojo al tocar este archivo:** es un template literal gigante
+  que arma HTML+JS para el WebView — un comentario con comilla invertida
+  (`` ` ``) dentro de ese bloque corta el string ahí mismo y rompe toda la
+  página; se encontró este bug al escribir esta misma función (ver el
+  `node --check` que lo detectó).
+- `mp_checkout_screen.dart`: manda el `checkoutToken` que ya tenía guardado
+  al POST a `/pay/checkout` (antes no lo hacía).
+- `tarjetas.controller.js` (nuevo) + rutas `GET /auth/me/tarjetas` y
+  `DELETE /auth/me/tarjetas/:cardId` (`auth.routes.js`, junto a `/auth/me`)
+  — para que el Participante vea y borre sus tarjetas desde Perfil.
+- Flutter: `tarjetas_service.dart` (nuevo) + tarjeta "Tarjetas guardadas" en
+  `profile_screen.dart` (solo Participante, solo aparece si tiene al menos
+  una tarjeta guardada o mientras carga la primera vez).
+
+**Qué significa para quien no conectó cuenta de MercadoPago (sandbox del
+equipo, o MERCADOPAGO_ACCESS_TOKEN en placeholder):** todo esto queda
+inerte — `credencialesListas()` ya se revisa antes de intentar nada, mismo
+patrón resiliente que el resto de las integraciones opcionales.
+
+**No se tocó:** no hay una forma de "agregar" una tarjeta desde Perfil sin
+pagar — se guarda sola la primera vez que se paga con una tarjeta nueva,
+que es como ya funciona MercadoPago del lado del Brick.
+
+**Probado directo contra la API real del sandbox (sin pasar por la app ni
+el Brick, ver abajo):** los 5 pasos (buscar/crear Customer, tokenizar
+tarjeta, guardarla, listarla, borrarla) funcionan tal cual quedaron
+implementados — confirmado con una tarjeta de prueba real y
+`live_mode: false` en cada respuesta. **Hallazgo:** la tarjeta de prueba
+Visa `4998 4704 7065 8262` (la que se usa para pagar, ver decisión 43) NO
+se puede guardar en un Customer — MercadoPago devuelve
+`"payment method not available for this card"` (código 132). Es una
+restricción de esa tarjeta de prueba puntual en el sandbox, no de nuestro
+código. Para probar tarjetas guardadas, usar en cambio la Visa
+`4509 9535 6623 3704`, mismo CVV 123, vencimiento 11/30, titular APRO — esa
+sí se deja guardar y recuperar sin problema.
+
+**Falta:** la prueba de punta a punta DESDE LA APP (abrir el Brick, pagar
+con esa segunda tarjeta, cerrar y volver a pagar) — la instalada en los
+emuladores es de antes de este cambio y no manda el `checkoutToken` nuevo,
+así que hace falta una APK nueva para verlo andar en pantalla.
+
+---
+
 _Última actualización: se va completando a medida que aparecen más
 decisiones de este tipo. Si el equipo agrega algo parecido, vale la pena
 sumarlo acá con el mismo formato._

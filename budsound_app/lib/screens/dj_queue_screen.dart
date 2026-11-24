@@ -15,11 +15,16 @@ import '../services/event_service.dart';
 import '../services/event_socket.dart';
 import '../services/request_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_theme.dart';
 import '../utils/clp_format.dart';
 import '../utils/image_data_url.dart';
+import '../widgets/animated_count.dart';
 import '../widgets/event_banner_image.dart';
 import '../widgets/fade_slide_in.dart';
+import '../widgets/loading_placeholder.dart';
+import '../widgets/nueva_solicitud_ring.dart';
+import '../widgets/resolucion_transition.dart';
 import '../widgets/solicitud_countdown.dart';
 
 /// Cola en vivo de un evento: QR para que se unan, y aceptar/rechazar
@@ -45,6 +50,15 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
   bool _cargando = true;
   bool _conectado = true;
   final Set<String> _resolviendo = {};
+  // id -> aceptada (true) o rechazada (false), mientras `ResolucionTransition`
+  // todavía está jugando su animación de salida — ver `_resolver`.
+  final Map<String, bool> _resolviendoOptimista = {};
+
+  // En `false` mientras se muestra la primera carga de la cola — ninguna
+  // solicitud ahí es "nueva" de verdad, así que no debe sonar el anillo
+  // azul ni la vibración de `NuevaSolicitudRing`. Se activa recién un frame
+  // después de que esa primera carga ya se pintó (ver `_cargarCola`).
+  bool _primeraCarguaHecha = false;
 
   // El estado del temporizador en sí vive en `DjTimerService.instance`, no
   // acá — así sigue corriendo aunque el DJ salga de esta pantalla y vuelva.
@@ -202,6 +216,11 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         _resumen = resumen;
         _cargando = false;
       });
+      if (!_primeraCarguaHecha) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _primeraCarguaHecha = true);
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _cargando = false);
@@ -261,6 +280,17 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
       } else {
         await _requestService.rechazar(solicitud.id);
       }
+      if (!mounted) return;
+      // Deja que `ResolucionTransition` juegue su animación de salida
+      // (ver ese widget) antes de recargar la cola y que la tarjeta salte
+      // de sección de golpe.
+      setState(() => _resolviendoOptimista[solicitud.id] = aceptar);
+      await Future.delayed(
+        AppMotion.of(context).reducida
+            ? Duration.zero
+            : const Duration(milliseconds: 420),
+      );
+      if (!mounted) return;
       await _cargarCola();
     } catch (e) {
       if (!mounted) return;
@@ -273,7 +303,12 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _resolviendo.remove(solicitud.id));
+      if (mounted) {
+        setState(() {
+          _resolviendo.remove(solicitud.id);
+          _resolviendoOptimista.remove(solicitud.id);
+        });
+      }
     }
   }
 
@@ -524,12 +559,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
             ),
             const SizedBox(height: 10),
             if (_cargando)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                    child:
-                        CircularProgressIndicator(color: AppColors.limeGreen)),
-              )
+              const LoadingPlaceholderList(cantidad: 2, alturaItem: 96)
             else if (pendientes.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
@@ -539,8 +569,15 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
             else
               ...pendientes.asMap().entries.map(
                     (e) => FadeSlideIn(
-                      delay: Duration(milliseconds: 50 * e.key),
-                      child: _tarjetaSolicitud(e.value),
+                      key: ValueKey('pendiente-${e.value.id}'),
+                      delay: AppMotion.of(context).escalonado(e.key),
+                      child: NuevaSolicitudRing(
+                        activo: _primeraCarguaHecha,
+                        child: ResolucionTransition(
+                          resultado: _resolviendoOptimista[e.value.id],
+                          child: _tarjetaSolicitud(e.value),
+                        ),
+                      ),
                     ),
                   ),
             if (resueltas.isNotEmpty) ...[
@@ -553,7 +590,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
               const SizedBox(height: 8),
               ...resueltas.asMap().entries.map(
                     (e) => FadeSlideIn(
-                      delay: Duration(milliseconds: 50 * e.key),
+                      delay: AppMotion.of(context).escalonado(e.key),
                       child: _tarjetaSolicitud(e.value),
                     ),
                   ),
@@ -602,7 +639,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -755,7 +792,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
           ],
           Text(
             _evento.code,
-            style: AppTheme.fontDisplay(
+            style: AppTheme.numeric(
               color: AppColors.white,
               fontSize: 24,
               letterSpacing: 4,
@@ -847,6 +884,9 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
   String _formatearClp(Object? valor) =>
       formatearClp(valor is num ? valor : num.tryParse('$valor') ?? 0);
 
+  int _comoEntero(Object? valor) =>
+      (valor is num ? valor : num.tryParse('$valor') ?? 0).round();
+
   /// La recaudación neta es el único número que de verdad le importa al DJ
   /// acá — antes se veía casi igual que el resto de las filas (solo un poco
   /// más grande y en negrita). Ahora tiene su propia sección, separada por
@@ -898,11 +938,16 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
                       color: AppColors.lavender,
                       fontSize: 13,
                       fontWeight: FontWeight.w600)),
-              Text(
-                '${_formatearClp(resumen['recaudacion_neta_clp'])} CLP',
-                style: AppTheme.fontDisplay(
-                  color: AppColors.limeGreen,
-                  fontSize: 22,
+              AnimatedCount(
+                valor: _comoEntero(resumen['recaudacion_neta_clp']),
+                formatear: (v) => '${formatearClp(v)} CLP',
+                builder: (context, texto) => Text(
+                  texto,
+                  style: AppTheme.numeric(
+                    color: AppColors.success,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -947,8 +992,7 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _colorEstado(solicitud)),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -956,6 +1000,8 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _puntoEstado(solicitud),
+                const SizedBox(width: 8),
                 _caratulaSolicitud(solicitud.artworkUrl),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1128,6 +1174,31 @@ class _DjQueueScreenState extends State<DjQueueScreen> {
     if (solicitud.rechazada) return AppColors.danger;
     if (solicitud.cancelada) return AppColors.muted;
     return AppColors.border;
+  }
+
+  /// Punto de 8px que reemplaza la franja lateral de color de antes — azul
+  /// mientras está en cola, ámbar apenas el DJ la acepta, rojo si está por
+  /// vencer (countdown bajo el minuto), gris cuando ya quedó resuelta.
+  Widget _puntoEstado(SongRequestModel solicitud) {
+    // `_resolviendoOptimista` adelanta el punto a ámbar apenas el DJ
+    // confirma aceptar, sin esperar a que `_cargarCola()` traiga el estado
+    // real del servidor — ver `ResolucionTransition`.
+    final aceptadaOptimista = _resolviendoOptimista[solicitud.id] == true;
+    final color = (solicitud.pendiente && !aceptadaOptimista)
+        ? AppColors.limeGreen
+        : (aceptadaOptimista ||
+                (solicitud.aceptada && !solicitud.reproducida))
+            ? AppColors.success
+            : AppColors.muted;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: AnimatedContainer(
+        duration: AppMotion.of(context).base,
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+    );
   }
 }
 

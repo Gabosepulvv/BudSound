@@ -386,6 +386,21 @@ que repetir si cambia el dominio. También verificar que la variable
 `PUBLIC_URL` en Railway sea la URL limpia (sin el nombre de la variable
 pegado adentro por error de copy-paste — ya pasó una vez).
 
+## Tarjetas guardadas (MercadoPago)
+
+Implementado (2026-11-24, ver DECISIONES_TECNICAS.md #45): la primera vez
+que un Participante paga una propina con una tarjeta nueva, queda guardada
+en MercadoPago (`mp_customer_id` en `users`) — la próxima propina, en
+cualquier evento de cualquier DJ, el Card Payment Brick la ofrece y solo
+pide el CVV. Un solo `mp_customer_id` por Participante alcanza para pagarle
+a cualquier DJ, porque el tokenizado de la tarjeta siempre pasa por la
+cuenta CENTRAL de BudSound (nunca por la del DJ conectado, aunque el cobro
+en sí sí se autorice ahí vía `application_fee` — ver "Split de pagos por
+DJ" arriba). Perfil → "Tarjetas guardadas" (solo Participante) para
+ver/borrar. Sin `MERCADOPAGO_ACCESS_TOKEN` real configurado, esta capa
+queda inerte (mismo patrón resiliente que el resto de las integraciones
+opcionales).
+
 ## Verificación de correo al registrarse
 
 Implementado vía la API HTTP de Brevo (no SMTP directo — Railway bloquea

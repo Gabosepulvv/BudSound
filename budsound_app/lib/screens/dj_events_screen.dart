@@ -16,6 +16,7 @@ import '../widgets/budsound_text_field.dart';
 import '../widgets/dj_timer_chip.dart';
 import '../widgets/event_banner_image.dart';
 import '../widgets/fade_slide_in.dart';
+import '../widgets/live_dot.dart';
 import '../widgets/neon_gradient_button.dart';
 import 'dj_queue_screen.dart';
 
@@ -598,7 +599,7 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         children: [
@@ -832,17 +833,24 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.limeGreen,
+                          color: AppColors.success,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
-                          'ACTIVO',
-                          style: TextStyle(
-                            color: AppColors.onLime,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            LiveDot(size: 6, color: AppColors.onSuccess),
+                            SizedBox(width: 4),
+                            Text(
+                              'ACTIVO',
+                              style: TextStyle(
+                                color: AppColors.onSuccess,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const Spacer(),
@@ -855,9 +863,9 @@ class _DjEventsScreenState extends State<DjEventsScreen> {
                     evento.nombre,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTheme.fontDisplay(
+                    style: AppTheme.title(
                       color: _textoSobreBlanco,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w500,
                       fontSize: 17,
                     ),
                   ),

@@ -195,6 +195,19 @@ async function desconectarMercadoPago(id) {
   );
 }
 
+// "Customer" de MercadoPago del Participante (ver schema.sql, mp_customer_id)
+// — se crea una sola vez (mercadopago.service.js, buscarOCrearCustomer) y se
+// reutiliza en cada pago para que el Card Payment Brick muestre su tarjeta
+// guardada en vez de un formulario vacío.
+async function obtenerMpCustomerId(id) {
+  const { rows } = await pool.query('SELECT mp_customer_id FROM users WHERE id = $1', [id]);
+  return rows[0]?.mp_customer_id || null;
+}
+
+async function guardarMpCustomerId(id, customerId) {
+  await pool.query('UPDATE users SET mp_customer_id = $2 WHERE id = $1', [id, customerId]);
+}
+
 module.exports = {
   crear,
   buscarPorEmail,
@@ -210,4 +223,6 @@ module.exports = {
   guardarConexionMercadoPago,
   buscarConexionMercadoPago,
   desconectarMercadoPago,
+  obtenerMpCustomerId,
+  guardarMpCustomerId,
 };

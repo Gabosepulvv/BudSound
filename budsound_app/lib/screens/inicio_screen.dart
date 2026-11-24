@@ -11,6 +11,8 @@ import '../widgets/avatar_encabezado.dart';
 import '../widgets/event_banner_image.dart';
 import '../widgets/fade_slide_in.dart';
 import '../widgets/glow_logo.dart';
+import '../widgets/live_dot.dart';
+import '../widgets/loading_placeholder.dart';
 import '../widgets/neon_gradient_button.dart';
 import 'participant_event_screen.dart';
 
@@ -120,11 +122,7 @@ class _InicioScreenState extends State<InicioScreen> {
         FadeSlideIn(child: _encabezadoParticipante(saludo)),
         const SizedBox(height: 18),
         if (_cargando)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 40),
-            child: Center(
-                child: CircularProgressIndicator(color: AppColors.limeGreen)),
-          )
+          const LoadingPlaceholder(height: 150, radius: 20)
         else if (_evento != null)
           FadeSlideIn(child: _tarjetaEventoActivoParticipante(_evento!))
         else
@@ -142,7 +140,7 @@ class _InicioScreenState extends State<InicioScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         children: [
@@ -214,20 +212,28 @@ class _InicioScreenState extends State<InicioScreen> {
                     color: AppColors.success,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'ACTIVO',
-                    style: TextStyle(
-                        color: AppColors.onSuccess,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      LiveDot(size: 6, color: AppColors.onSuccess),
+                      SizedBox(width: 4),
+                      Text(
+                        'ACTIVO',
+                        style: TextStyle(
+                            color: AppColors.onSuccess,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   evento.nombre,
-                  style: AppTheme.fontDisplay(
+                  style: AppTheme.title(
                     color: AppColors.white,
                     fontSize: 18,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -282,8 +288,6 @@ class _InicioScreenState extends State<InicioScreen> {
                 const SizedBox(height: 16),
                 NeonGradientButton(
                   label: 'Pedir una canción',
-                  color: AppColors.success,
-                  colorTexto: AppColors.onSuccess,
                   onPressed: _abrirEvento,
                 ),
               ],
@@ -320,8 +324,6 @@ class _InicioScreenState extends State<InicioScreen> {
           const SizedBox(height: 18),
           NeonGradientButton(
             label: 'Ir a En vivo',
-            color: AppColors.success,
-            colorTexto: AppColors.onSuccess,
             onPressed: widget.onIrAEnVivo,
           ),
         ],

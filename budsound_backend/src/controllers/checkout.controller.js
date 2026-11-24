@@ -1,4 +1,7 @@
+const jwt = require('jsonwebtoken');
 const env = require('../config/env');
+const mercadopagoService = require('../services/mercadopago.service');
+const { asegurarCustomerId } = require('../services/mp-customer.helper');
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({
@@ -16,14 +19,17 @@ function escapeHtml(value) {
 // BudSound). El POST real a `/api/events/:eventId/requests` (donde se
 // dispara `autorizarPago`, ver CLAUDE.md riesgo "Autorización de pago vs.
 // captura") lo hace FLUTTER, no esta página — ver el comentario en
-// `onSubmit` más abajo para el porqué. El campo `jwt` que llega acá es el
-// token de checkout de 15 minutos de `emitirTokenCheckout`
-// (`request.controller.js`) / `requireAuthOrCheckoutScope`
-// (`auth.middleware.js`); ya no esta página lo usa para nada, pero
-// `McpCheckoutScreen` lo guarda y es quien lo usa para autenticar su
-// propio POST — sigue siendo un token acotado (15 min, un solo evento), no
-// el JWT de sesión completo.
-function paginaCheckout(req, res) {
+// `onSubmit` más abajo para el porqué. El campo `checkoutToken` (el mismo
+// token de 15 minutos de `emitirTokenCheckout` que ya traía
+// `McpCheckoutScreen`, ver DECISIONES_TECNICAS.md) ahora sí se usa acá: con
+// él se busca/crea el "Customer" de MercadoPago del Participante y se le
+// pasa al Brick (`initialization.payer.customerId`) para que muestre su
+// tarjeta guardada en vez de un formulario vacío — ver `buscarOCrearCustomer`
+// en mercadopago.service.js. Si el token falta, es inválido, o MercadoPago
+// no responde, se sigue sin `customerId`: el Brick cae solo a pedir una
+// tarjeta nueva, igual que antes de esta función existir (mismo patrón
+// resiliente que el resto de las integraciones opcionales del proyecto).
+async function paginaCheckout(req, res) {
   const {
     eventId,
     itunesTrackId,
@@ -32,10 +38,25 @@ function paginaCheckout(req, res) {
     artworkUrl,
     montoClp,
     terminosAceptados,
+    checkoutToken,
   } = req.body || {};
 
   if (!eventId || !itunesTrackId || !titulo || !montoClp) {
     return res.status(400).send('Faltan datos para iniciar el pago.');
+  }
+
+  let customerId = null;
+  let payerEmail = null;
+  if (checkoutToken && mercadopagoService.credencialesListas()) {
+    try {
+      const payload = jwt.verify(checkoutToken, env.jwtSecret);
+      payerEmail = payload.email || null;
+      if (payerEmail) {
+        customerId = await asegurarCustomerId(payload.sub, payerEmail);
+      }
+    } catch (error) {
+      console.error('No se pudo resolver el Customer de MercadoPago (se sigue sin tarjeta guardada):', error.message);
+    }
   }
 
   const datos = {
@@ -46,6 +67,8 @@ function paginaCheckout(req, res) {
     artworkUrl: artworkUrl || '',
     montoClp: Number(montoClp),
     terminosAceptados: Boolean(terminosAceptados),
+    customerId,
+    payerEmail,
   };
 
   res.set('Content-Type', 'text/html; charset=utf-8').send(`<!DOCTYPE html>
@@ -121,7 +144,18 @@ function paginaCheckout(req, res) {
     };
 
     mp.bricks().create('cardPayment', 'cardPaymentBrick_container', {
-      initialization: { amount: datos.montoClp },
+      initialization: {
+        amount: datos.montoClp,
+        // Con customerId, el Brick lista la tarjeta guardada del
+        // Participante (si tiene una) y solo pide el CVV para volver a
+        // pagar — sin eso (ej. primera propina, o si MercadoPago no
+        // respondió al crear el Customer), cae solo al formulario vacío de
+        // siempre. payer.email lo precarga para no pedírselo de nuevo.
+        payer: {
+          customerId: datos.customerId || undefined,
+          email: datos.payerEmail || undefined,
+        },
+      },
       callbacks: {
         // El Brick exige los dos (onReady y onError) para inicializar —
         // sin onReady tira "Callbacks onReady and/or onError are

@@ -192,8 +192,6 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
             NeonGradientButton(
               label: 'Escanear código QR',
               loading: _cargando,
-              color: AppColors.success,
-              colorTexto: AppColors.onSuccess,
               onPressed: _escanear,
             ),
             const SizedBox(height: 18),
@@ -284,8 +282,6 @@ class _ParticipantJoinScreenState extends State<ParticipantJoinScreen> {
           const SizedBox(height: 16),
           NeonGradientButton(
             label: 'Pedir una canción',
-            color: AppColors.success,
-            colorTexto: AppColors.onSuccess,
             onPressed: _abrirEventoActual,
           ),
           const SizedBox(height: 8),

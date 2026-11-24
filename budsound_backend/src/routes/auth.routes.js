@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/auth.controller');
+const tarjetasController = require('../controllers/tarjetas.controller');
 const { requireAuth } = require('../middleware/auth.middleware');
 
 const router = Router();
@@ -25,5 +26,7 @@ router.post('/reset-password', authLimiter, authController.confirmarRestablecer)
 router.get('/me', requireAuth, authController.perfil);
 router.patch('/me', requireAuth, authController.actualizarPerfil);
 router.delete('/me', requireAuth, authController.eliminarCuenta);
+router.get('/me/tarjetas', requireAuth, tarjetasController.listar);
+router.delete('/me/tarjetas/:cardId', requireAuth, tarjetasController.borrar);
 
 module.exports = router;

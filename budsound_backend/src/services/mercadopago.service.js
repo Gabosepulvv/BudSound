@@ -131,6 +131,55 @@ async function obtenerPago(paymentId) {
   return llamarMp(`/v1/payments/${paymentId}`);
 }
 
+// Busca o crea el "Customer" de MercadoPago del Participante (ver
+// schema.sql, mp_customer_id) — SIEMPRE contra la cuenta CENTRAL de
+// BudSound (nunca `djAccessToken`): el Card Payment Brick tokeniza con la
+// Public Key central sin importar si el pago después se autoriza en la
+// cuenta de un DJ conectado, así que un solo Customer alcanza para pagarle
+// a cualquier DJ — ver DECISIONES_TECNICAS.md. Se busca primero por email
+// porque MercadoPago no deja crear dos Customers con el mismo correo (tira
+// error si ya existe), y es más simple buscar que parsear ese error.
+async function buscarOCrearCustomer({ email }) {
+  const busqueda = await llamarMp(`/v1/customers/search?email=${encodeURIComponent(email)}`);
+  const existente = busqueda?.results?.[0];
+  if (existente) return existente;
+
+  return llamarMp('/v1/customers', { method: 'POST', body: { email } });
+}
+
+// Tarjetas guardadas del Customer — para que el Participante las vea (y
+// pueda borrarlas) en Perfil. MercadoPago nunca expone el número completo,
+// solo los últimos 4 dígitos y la franquicia.
+async function listarTarjetasGuardadas(customerId) {
+  const tarjetas = await llamarMp(`/v1/customers/${customerId}/cards`);
+  return Array.isArray(tarjetas) ? tarjetas : [];
+}
+
+async function borrarTarjetaGuardada(customerId, cardId) {
+  return llamarMp(`/v1/customers/${customerId}/cards/${cardId}`, { method: 'DELETE' });
+}
+
+// Se llama después de autorizar CUALQUIER pago (ver request.controller.js)
+// para que la próxima propina ya encuentre la tarjeta guardada. No hace
+// falta distinguir "tarjeta nueva" de "tarjeta ya guardada, solo puso el
+// CVV" — probado a mano contra el sandbox real (ver DECISIONES_TECNICAS.md
+// #45): guardar dos veces la misma tarjeta física (dos tokens distintos,
+// mismo número) NO la duplica, MercadoPago la reconoce y deja un solo
+// registro. Aun así se llama envuelta en try/catch desde quien la usa: no
+// es crítico, nunca debe tirar abajo un pago que ya se autorizó bien.
+//
+// Ojo: no todas las tarjetas de prueba del sandbox se pueden guardar en un
+// Customer — MercadoPago puede responder "payment method not available
+// for this card" (código 132) para una tarjeta que sí sirve para pagar
+// pero no para esto (confirmado con la Visa 4998 4704 7065 8262; la Visa
+// 4509 9535 6623 3704 sí se deja guardar — ver DECISIONES_TECNICAS.md #45).
+async function guardarTarjetaEnCustomer(customerId, cardToken) {
+  return llamarMp(`/v1/customers/${customerId}/cards`, {
+    method: 'POST',
+    body: { token: cardToken },
+  });
+}
+
 // Stub temporal que simula solo el resultado final, para poder demostrar el
 // flujo del MVP mientras un integrante del equipo no tenga sus propias
 // credenciales de sandbox en su `.env` local (ver `credencialesListas`,
@@ -152,4 +201,8 @@ module.exports = {
   cancelarPago,
   obtenerPago,
   crearPreferenciaDePago,
+  buscarOCrearCustomer,
+  listarTarjetasGuardadas,
+  borrarTarjetaGuardada,
+  guardarTarjetaEnCustomer,
 };

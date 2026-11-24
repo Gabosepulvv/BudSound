@@ -12,7 +12,10 @@ import '../theme/app_colors.dart';
 /// WebView con el formulario de tarjeta de MercadoPago (Card Payment Brick,
 /// servido por el propio backend en `/pay/checkout`) para tokenizar la
 /// tarjeta antes de crear la solicitud — ver CLAUDE.md, riesgo
-/// "Autorización de pago vs. captura".
+/// "Autorización de pago vs. captura". Desde la tarjeta guardada
+/// (DECISIONES_TECNICAS.md), `/pay/checkout` también recibe el
+/// `checkoutToken` para poder mostrar la tarjeta guardada del Participante
+/// en el Brick en vez de un formulario vacío.
 ///
 /// El `POST /events/:id/requests` (donde se autoriza el pago de verdad) lo
 /// hace ESTA pantalla con el cliente HTTP de Dart, no el WebView con
@@ -92,9 +95,10 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
     // que tenemos el HTML de respuesta, se lo pasamos al WebView con
     // loadHtmlString; baseUrl es necesario para que los recursos relativos
     // que carga esa página (ver checkout.controller.js) resuelvan contra
-    // nuestro backend y no contra "about:blank". Ya no se manda el
-    // `checkoutToken` acá — la página no vuelve a llamar a nuestra API
-    // (ver comentario de la clase), solo esta pantalla lo usa más abajo.
+    // nuestro backend y no contra "about:blank". El `checkoutToken` sí se
+    // manda acá (para la tarjeta guardada, ver comentario de la clase) —
+    // la página no vuelve a llamar a nuestra API con él, solo lo usa el
+    // propio backend al armar este HTML.
     final String html;
     try {
       final respuesta = await http.post(
@@ -108,6 +112,12 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
           'artworkUrl': widget.artworkUrl,
           'montoClp': widget.montoClp,
           'terminosAceptados': widget.terminosAceptados,
+          // Con esto el backend resuelve el "Customer" de MercadoPago del
+          // Participante y el Brick muestra su tarjeta guardada en vez de
+          // un formulario vacío — ver checkout.controller.js. El token ya
+          // se pedía antes (ver `_checkoutToken` arriba), ahora también se
+          // manda para esto.
+          'checkoutToken': checkoutToken,
         }),
       );
       if (respuesta.statusCode != 200) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/event_model.dart';
 import '../models/itunes_track.dart';
@@ -13,6 +14,7 @@ import '../services/request_service.dart';
 import '../services/session_service.dart';
 import '../services/song_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_theme.dart';
 import '../utils/clp_format.dart';
 import '../widgets/ambient_lights_background.dart';
@@ -20,6 +22,7 @@ import '../widgets/budsound_text_field.dart';
 import '../widgets/fade_slide_in.dart';
 import '../widgets/neon_gradient_button.dart';
 import '../widgets/pressable_scale.dart';
+import '../widgets/song_waveform.dart';
 import 'mp_checkout_screen.dart';
 
 /// Buscar canción y pedirla (con propina obligatoria) dentro de un evento, y
@@ -381,6 +384,13 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     var monto = _montosPredefinidos.first;
     var aceptaTerminos = false;
     var mostrarOtro = false;
+    // 1 = el monto subió (el dígito nuevo entra desde abajo), -1 = bajó
+    // (entra desde arriba) — para el efecto "odómetro" del monto grande.
+    var direccionMonto = 1;
+    // Breve estado "éxito" (check en el botón) antes de cerrar el diálogo
+    // — le da tiempo al ojo de registrar que sí se envió, en vez de que el
+    // diálogo desaparezca de golpe apenas se toca el botón.
+    var enviado = false;
     String? errorOtro;
     final otroController = TextEditingController();
 
@@ -395,14 +405,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  blurRadius: 32,
-                  offset: const Offset(0, 12),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -425,13 +428,27 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                 // El monto flota grande y centrado, imposible de pasar por
                 // alto — antes era un campo de texto chico al fondo de la
                 // pantalla.
-                Text(
-                  _formatearClp(monto),
-                  textAlign: TextAlign.center,
-                  style: AppTheme.fontDisplay(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 40,
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 160),
+                  transitionBuilder: (child, animation) => ClipRect(
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: Offset(0, 0.6 * direccionMonto),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                  ),
+                  child: Text(
+                    _formatearClp(monto),
+                    key: ValueKey(monto),
+                    textAlign: TextAlign.center,
+                    style: AppTheme.numeric(
+                      color: AppColors.success,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 48,
+                      letterSpacing: -1.9,
+                    ),
                   ),
                 ),
                 const Text('CLP',
@@ -449,6 +466,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                         label: _formatearClp(valor),
                         activo: activo,
                         onTap: () => setState(() {
+                          direccionMonto = valor > monto ? 1 : -1;
                           monto = valor;
                           mostrarOtro = false;
                           errorOtro = null;
@@ -474,6 +492,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                       final valido = _validarMontoCustom(texto);
                       setState(() {
                         if (valido != null) {
+                          direccionMonto = valido > monto ? 1 : -1;
                           monto = valido;
                           errorOtro = null;
                         } else {
@@ -515,32 +534,43 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                 const SizedBox(height: 12),
                 NeonGradientButton(
                   label: 'Enviar propina',
-                  color: AppColors.success,
-                  colorTexto: AppColors.onSuccess,
-                  onPressed: () {
-                    if (mostrarOtro &&
-                        _validarMontoCustom(otroController.text) == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text(
-                              'Ingresa un monto válido antes de enviar.'),
-                          backgroundColor: AppColors.danger,
-                        ),
-                      );
-                      return;
-                    }
-                    if (!aceptaTerminos) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text(
-                              'Acepta los Términos y Condiciones para enviar una propina.'),
-                          backgroundColor: AppColors.danger,
-                        ),
-                      );
-                      return;
-                    }
-                    Navigator.of(context).pop((monto, aceptaTerminos));
-                  },
+                  exito: enviado,
+                  onPressed: enviado
+                      ? null
+                      : () async {
+                          if (mostrarOtro &&
+                              _validarMontoCustom(otroController.text) ==
+                                  null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                    'Ingresa un monto válido antes de enviar.'),
+                                backgroundColor: AppColors.danger,
+                              ),
+                            );
+                            return;
+                          }
+                          if (!aceptaTerminos) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                    'Acepta los Términos y Condiciones para enviar una propina.'),
+                                backgroundColor: AppColors.danger,
+                              ),
+                            );
+                            return;
+                          }
+                          HapticFeedback.mediumImpact();
+                          setState(() => enviado = true);
+                          if (!AppMotion.of(context).reducida) {
+                            await Future.delayed(
+                                const Duration(milliseconds: 260));
+                          }
+                          if (context.mounted) {
+                            Navigator.of(context)
+                                .pop((monto, aceptaTerminos));
+                          }
+                        },
                 ),
               ],
             ),
@@ -550,6 +580,10 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     );
   }
 
+  /// Píldora de 44 de alto — el chip seleccionado va en [AppColors.white]
+  /// (textPrimary) con el texto en [AppColors.background], invirtiendo el
+  /// contraste normal para que se note de un vistazo cuál está elegido, sin
+  /// necesitar un borde.
   Widget _chipMonto({
     required String label,
     required bool activo,
@@ -559,19 +593,18 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        height: 44,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
         decoration: BoxDecoration(
-          color: activo ? AppColors.success : AppColors.background,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: activo ? AppColors.success : AppColors.border,
-          ),
+          color: activo ? AppColors.white : AppColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(22),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: activo ? AppColors.onSuccess : AppColors.lavender,
-            fontWeight: FontWeight.w700,
+            color: activo ? AppColors.background : AppColors.lavender,
+            fontWeight: FontWeight.w600,
             fontSize: 13,
           ),
         ),
@@ -718,15 +751,15 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
                       }
                       final pista = _resultados[index - 1];
                       return FadeSlideIn(
-                        delay: Duration(milliseconds: 35 * (index - 1)),
+                        delay: AppMotion.of(context).escalonado(index - 1),
                         child: PressableScale(
                           onTap: () => _pedirCancion(pista),
                           child: Material(
                             color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(20),
                             child: ListTile(
                               leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                                 child: Image.network(
                                   pista.artworkUrl,
                                   width: 48,
@@ -780,7 +813,7 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
         itemCount: _pendientesLocales.length + _misSolicitudes.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
-          final delay = Duration(milliseconds: 40 * index);
+          final delay = AppMotion.of(context).escalonado(index);
           if (index < _pendientesLocales.length) {
             return FadeSlideIn(
               delay: delay,
@@ -797,13 +830,26 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
     );
   }
 
+  /// Punto de 8px que reemplaza la franja lateral/borde de color de antes
+  /// — ver `DjQueueScreen._puntoEstado`, mismo patrón.
+  Widget _puntoEstado(Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+    );
+  }
+
   /// Carátula de la canción con el mismo recorte/tamaño que en los
   /// resultados de búsqueda — antes estas tarjetas no mostraban ninguna
   /// imagen, así que una vez enviada la solicitud la canción perdía toda
   /// identidad visual.
   Widget _caratula(String? artworkUrl) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       child: artworkUrl == null || artworkUrl.isEmpty
           ? Container(
               width: 48,
@@ -835,11 +881,12 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.muted),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         children: [
+          _puntoEstado(AppColors.muted),
+          const SizedBox(width: 8),
           _caratula(pendiente.artworkUrl),
           const SizedBox(width: 12),
           Expanded(
@@ -899,80 +946,113 @@ class _ParticipantEventScreenState extends State<ParticipantEventScreen>
   }
 
   Widget _tarjetaSolicitud(SongRequestModel solicitud) {
+    // Azul = en cola, ámbar = aceptada, rojo = rechazada, gris = cancelada
+    // por tiempo (ver DECISIONES_TECNICAS.md, rebranding "Cabina minimal" —
+    // reemplaza la franja lateral de color de antes por un punto de 8px).
     final color = solicitud.aceptada
         ? AppColors.success
         : solicitud.rechazada
             ? AppColors.danger
             : solicitud.cancelada
                 ? AppColors.muted
-                : AppColors.border;
+                : AppColors.limeGreen;
+
+    // Decorativo puro, nunca representa un progreso real de reproducción
+    // (ver CLAUDE.md) — solo distingue "esperando" (sin nada "reproducido")
+    // de "aceptada" (a medio camino, señal de que viene en camino) y
+    // "reproducida" (toda la barra). No se muestra si quedó
+    // rechazada/cancelada, ahí no aporta nada.
+    final mostrarOnda = !solicitud.rechazada && !solicitud.cancelada;
+    final ondaFraccion =
+        solicitud.reproducida ? 1.0 : solicitud.aceptada ? 0.45 : 0.0;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _caratula(solicitud.artworkUrl),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  solicitud.titulo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: AppColors.white, fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  solicitud.artista,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  solicitud.pendiente
-                      ? 'Esperando al DJ'
-                      : solicitud.aceptada
-                          ? (solicitud.reproducida ? 'Reproducida' : 'Aceptada')
-                          : solicitud.cancelada
-                              ? 'Cancelada (sin respuesta a tiempo)'
-                              : 'Rechazada',
-                  style: TextStyle(
-                      color: color, fontWeight: FontWeight.w700, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          if (solicitud.tienePropina) ...[
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  _formatearClp(solicitud.montoClp),
-                  style: const TextStyle(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13),
-                ),
-                // La propina se autoriza al crear la solicitud y se cobra
-                // sola cuando el DJ acepta (ver McpCheckoutScreen) — no hay
-                // un paso de pago manual aparte que el Participante tenga
-                // que hacer acá.
-                if (solicitud.aceptada)
-                  Text('Pagado',
+          Row(
+            children: [
+              _puntoEstado(color),
+              const SizedBox(width: 8),
+              _caratula(solicitud.artworkUrl),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      solicitud.titulo,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AppColors.white, fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      solicitud.artista,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          const TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      solicitud.pendiente
+                          ? 'Esperando al DJ'
+                          : solicitud.aceptada
+                              ? (solicitud.reproducida
+                                  ? 'Reproducida'
+                                  : 'Aceptada')
+                              : solicitud.cancelada
+                                  ? 'Cancelada (sin respuesta a tiempo)'
+                                  : 'Rechazada',
                       style: TextStyle(
-                          color: AppColors.success,
+                          color: color,
                           fontWeight: FontWeight.w700,
-                          fontSize: 11)),
+                          fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              if (solicitud.tienePropina) ...[
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _formatearClp(solicitud.montoClp),
+                      style: const TextStyle(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13),
+                    ),
+                    // La propina se autoriza al crear la solicitud y se cobra
+                    // sola cuando el DJ acepta (ver McpCheckoutScreen) — no
+                    // hay un paso de pago manual aparte que el Participante
+                    // tenga que hacer acá.
+                    if (solicitud.aceptada)
+                      Text('Pagado',
+                          style: TextStyle(
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11)),
+                  ],
+                ),
               ],
+            ],
+          ),
+          if (mostrarOnda) ...[
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SongWaveform(
+                playedFraction: ondaFraccion,
+                seed: solicitud.id.hashCode,
+              ),
             ),
           ],
         ],

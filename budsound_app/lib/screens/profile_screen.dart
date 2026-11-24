@@ -15,12 +15,14 @@ import '../services/colorblind_mode_service.dart';
 import '../services/event_service.dart';
 import '../services/mp_connect_service.dart';
 import '../services/session_service.dart';
+import '../services/tarjetas_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/clp_format.dart';
 import '../utils/image_data_url.dart';
 import '../widgets/budsound_text_field.dart';
 import '../widgets/fade_slide_in.dart';
 import '../widgets/glow_logo.dart';
+import '../widgets/loading_placeholder.dart';
 import '../widgets/neon_gradient_button.dart';
 import 'participant_history_screen.dart';
 
@@ -37,6 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   final _picker = ImagePicker();
   final _mpConnect = MpConnectService();
   final _eventService = EventService();
+  final _tarjetasService = TarjetasService();
   late final TextEditingController _nombreController;
   late final TextEditingController _apellidoController;
   late final TextEditingController _nombreArtisticoController;
@@ -48,6 +51,13 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
 
   MpConexionEstado? _mpEstado;
   bool _cargandoMp = false;
+
+  // Tarjetas guardadas del Participante (ver tarjetas_service.dart) — para
+  // que pueda ver con qué tarjeta va a pagar la próxima propina y borrarla
+  // si quiere, sin tener que entrar a MercadoPago directo.
+  List<TarjetaGuardada>? _tarjetas;
+  bool _cargandoTarjetas = false;
+  final Set<String> _borrandoTarjeta = {};
 
   // Resumen de toda la carrera del DJ (no solo un evento puntual) — vivía
   // en la pestaña "Inicio" (ya eliminada para el DJ, ver ShellScreen), se
@@ -79,6 +89,66 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     if (SessionService.instance.rol == UserRole.dj) {
       _cargarEstadoMp();
       _cargarStats();
+    } else {
+      _cargarTarjetas();
+    }
+  }
+
+  Future<void> _cargarTarjetas() async {
+    setState(() => _cargandoTarjetas = true);
+    try {
+      final tarjetas = await _tarjetasService.listar();
+      if (mounted) setState(() => _tarjetas = tarjetas);
+    } catch (_) {
+      // Resiliente: si falla, la tarjeta queda con su estado vacío/anterior
+      // en vez de romper el resto de Perfil — no es información crítica.
+    } finally {
+      if (mounted) setState(() => _cargandoTarjetas = false);
+    }
+  }
+
+  Future<void> _borrarTarjeta(TarjetaGuardada tarjeta) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('¿Borrar esta tarjeta?',
+            style: TextStyle(color: AppColors.white)),
+        content: const Text(
+          'Vas a tener que ingresar los datos completos la próxima vez que pagues una propina.',
+          style: TextStyle(color: AppColors.lavender),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar',
+                style: TextStyle(color: AppColors.muted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Borrar', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    setState(() => _borrandoTarjeta.add(tarjeta.id));
+    try {
+      await _tarjetasService.borrar(tarjeta.id);
+      if (mounted) {
+        setState(() => _tarjetas?.removeWhere((t) => t.id == tarjeta.id));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No se pudo borrar la tarjeta. Intenta de nuevo.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _borrandoTarjeta.remove(tarjeta.id));
     }
   }
 
@@ -594,6 +664,14 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                     delay: const Duration(milliseconds: 60),
                     child: _tarjetaHistorial(),
                   ),
+                  if (_cargandoTarjetas ||
+                      (_tarjetas != null && _tarjetas!.isNotEmpty)) ...[
+                    const SizedBox(height: 16),
+                    FadeSlideIn(
+                      delay: const Duration(milliseconds: 120),
+                      child: _tarjetaTarjetasGuardadas(),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 16),
                 FadeSlideIn(
@@ -636,9 +714,9 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   Widget _tarjetaHistorial() {
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
               builder: (_) => const ParticipantHistoryScreen()),
@@ -646,7 +724,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
             children: [
@@ -676,6 +754,82 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     );
   }
 
+  /// Tarjetas guardadas en MercadoPago — aparece solo si hay alguna (o
+  /// mientras se está cargando la primera vez); si el Participante nunca
+  /// pagó con tarjeta nueva, todavía no tiene ninguna que mostrar. Dejar
+  /// pagada una propina guarda la tarjeta sola (ver checkout.controller.js,
+  /// mp_checkout_screen.dart) — acá solo se ve/borra, no se agrega a mano.
+  Widget _tarjetaTarjetasGuardadas() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Tarjetas guardadas',
+            style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            'La próxima propina solo te va a pedir el CVV.',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          if (_cargandoTarjetas && _tarjetas == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: LoadingPlaceholder(height: 48, radius: 14),
+            )
+          else
+            for (final tarjeta in _tarjetas ?? const <TarjetaGuardada>[])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceHigh,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.credit_card_rounded, color: AppColors.muted, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${tarjeta.franquicia ?? 'Tarjeta'} •••• ${tarjeta.ultimosDigitos ?? '----'}',
+                          style: const TextStyle(color: AppColors.white, fontSize: 13),
+                        ),
+                      ),
+                      Text(tarjeta.vencimiento,
+                          style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                      const SizedBox(width: 8),
+                      _borrandoTarjeta.contains(tarjeta.id)
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : IconButton(
+                              onPressed: () => _borrarTarjeta(tarjeta),
+                              icon: Icon(Icons.delete_outline_rounded,
+                                  color: AppColors.danger, size: 20),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Borrar tarjeta',
+                            ),
+                    ],
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+
   /// Portada estilo "banner de canal" con el avatar sobresaliendo desde
   /// abajo — reemplaza la tarjeta plana que había antes.
   Widget _banner(String? avatarDataUrl) {
@@ -687,34 +841,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           Container(
             height: 150,
             width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.surface, AppColors.background],
-              ),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: -30,
-                  right: -20,
-                  child: Container(
-                    width: 180,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          AppColors.glow.withValues(alpha: 0.5),
-                          AppColors.glow.withValues(alpha: 0.0),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            decoration: const BoxDecoration(color: AppColors.surface),
           ),
           Positioned(
             left: 0,
@@ -736,7 +863,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -841,7 +968,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: _cargandoStats && _statsGeneral == null
           ? Center(
@@ -955,7 +1082,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: AppColors.background,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             image: imagen != null
                 ? DecorationImage(image: imagen, fit: BoxFit.cover)
                 : null,
@@ -1038,7 +1165,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1081,12 +1208,8 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
         Container(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.glow, Color(0xFF241737)],
-            ),
+            borderRadius: BorderRadius.circular(20),
+            color: AppColors.surfaceHigh,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1242,7 +1365,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         children: [

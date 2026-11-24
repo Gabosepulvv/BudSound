@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../models/song_request_model.dart';
 import '../services/request_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_motion.dart';
 import '../utils/clp_format.dart';
+import '../widgets/animated_count.dart';
 import '../widgets/fade_slide_in.dart';
 import '../widgets/glow_logo.dart';
+import '../widgets/loading_placeholder.dart';
 
 /// Historial de propinas del Participante a través de TODOS sus eventos —
 /// a diferencia de `ParticipantEventScreen`, que solo muestra lo pedido
@@ -93,9 +96,7 @@ class _ParticipantHistoryScreenState extends State<ParticipantHistoryScreen> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(
-                child: CircularProgressIndicator(color: AppColors.limeGreen),
-              );
+              return const LoadingPlaceholderList();
             }
             if (snapshot.hasError) {
               return ListView(
@@ -150,7 +151,7 @@ class _ParticipantHistoryScreenState extends State<ParticipantHistoryScreen> {
                 const SizedBox(height: 16),
                 ...solicitudes.asMap().entries.map(
                       (e) => FadeSlideIn(
-                        delay: Duration(milliseconds: 40 * e.key),
+                        delay: AppMotion.of(context).escalonado(e.key),
                         child: _tarjetaSolicitud(e.value),
                       ),
                     ),
@@ -167,7 +168,7 @@ class _ParticipantHistoryScreenState extends State<ParticipantHistoryScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         children: [
@@ -191,11 +192,15 @@ class _ParticipantHistoryScreenState extends State<ParticipantHistoryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_formatearClp(gastado),
-                    style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800)),
+                AnimatedCount(
+                  valor: gastado,
+                  formatear: _formatearClp,
+                  builder: (context, texto) => Text(texto,
+                      style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800)),
+                ),
                 const Text('Propinas aceptadas',
                     style: TextStyle(color: AppColors.muted, fontSize: 12)),
               ],
@@ -214,7 +219,7 @@ class _ParticipantHistoryScreenState extends State<ParticipantHistoryScreen> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
@@ -223,7 +228,7 @@ class _ParticipantHistoryScreenState extends State<ParticipantHistoryScreen> {
               height: 40,
               decoration: BoxDecoration(
                 color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(estado.icono, color: estado.color, size: 20),
             ),

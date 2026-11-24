@@ -76,7 +76,6 @@ class _ShellScreenState extends State<ShellScreen> {
       builder: (context, _) {
         return Scaffold(
           backgroundColor: AppColors.background,
-          extendBody: true,
           body: IndexedStack(
             index: _indice,
             children: esDj
@@ -102,9 +101,9 @@ class _ShellScreenState extends State<ShellScreen> {
   }
 }
 
-/// Barra de navegación como píldora flotante, no una franja que ocupa todo
-/// el ancho — el acento solo se nota en el ícono activo (un círculo
-/// relleno detrás), nada de indicador ancho ni franja de color.
+/// Barra de navegación plana, ancho completo — sin línea superior. El tab
+/// activo se marca con un punto azul de 5px sobre su etiqueta (nunca una
+/// franja de color ni un círculo relleno detrás del ícono).
 class _BarraFlotante extends StatelessWidget {
   const _BarraFlotante({
     required this.esDj,
@@ -130,25 +129,24 @@ class _BarraFlotante extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = esDj ? _itemsDj : _itemsParticipante;
-    return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(32, 0, 32, 16),
-      child: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            for (var i = 0; i < items.length; i++)
-              _botonTab(
-                icono: items[i].$1,
-                etiqueta: items[i].$2,
-                activo: i == indiceSeleccionado,
-                onTap: () => onSeleccionar(i),
-              ),
-          ],
+    return ColoredBox(
+      color: AppColors.surface,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 64,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              for (var i = 0; i < items.length; i++)
+                _botonTab(
+                  icono: items[i].$1,
+                  etiqueta: items[i].$2,
+                  activo: i == indiceSeleccionado,
+                  onTap: () => onSeleccionar(i),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -160,26 +158,40 @@ class _BarraFlotante extends StatelessWidget {
     required bool activo,
     required VoidCallback onTap,
   }) {
+    final color = activo ? AppColors.limeGreen : AppColors.muted;
     return Semantics(
       label: etiqueta,
       selected: activo,
       button: true,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: activo ? AppColors.limeGreen : Colors.transparent,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icono,
-            color: activo ? AppColors.onLime : AppColors.muted,
-            size: 24,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icono, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              etiqueta,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: activo ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 3),
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: activo ? 1 : 0,
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppColors.limeGreen,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
