@@ -54,6 +54,13 @@ async function autorizarPago({
   identificationType,
   identificationNumber,
   payerEmail,
+  // Cuando el token viene de una tarjeta YA guardada (ver
+  // mp-customer.helper.js y checkout.controller.js, formulario de "pagar
+  // con tarjeta guardada"), el `payer` va con `type`+`id` del Customer en
+  // vez de email/identification — así lo exige la propia API de
+  // MercadoPago para pagos con tarjeta guardada (ver DECISIONES_TECNICAS.md
+  // #45, "Receive payments with saved cards").
+  customerId,
   // Cuando el DJ del evento conectó su propia cuenta (OAuth marketplace):
   // el pago se autoriza directo en SU cuenta (djAccessToken) y
   // `application_fee` es lo que MercadoPago retiene aparte para BudSound.
@@ -69,12 +76,14 @@ async function autorizarPago({
     installments: installments || 1,
     payment_method_id: paymentMethodId,
     capture: false,
-    payer: {
-      email: payerEmail,
-      ...(identificationType && identificationNumber
-        ? { identification: { type: identificationType, number: identificationNumber } }
-        : {}),
-    },
+    payer: customerId
+      ? { type: 'customer', id: customerId }
+      : {
+          email: payerEmail,
+          ...(identificationType && identificationNumber
+            ? { identification: { type: identificationType, number: identificationNumber } }
+            : {}),
+        },
     external_reference: requestId,
     // Varios bancos comparten el mismo rango de tarjetas (BIN); sin
     // esto MercadoPago puede rechazar el pago con "Params Error" al no

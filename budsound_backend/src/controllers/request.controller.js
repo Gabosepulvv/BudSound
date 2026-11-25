@@ -49,6 +49,11 @@ const crear = asyncHandler(async (req, res) => {
     issuerId,
     identificationType,
     identificationNumber,
+    // Viene cuando el Participante pagó con una tarjeta YA guardada (ver
+    // checkout.controller.js, formulario de "pagar con tarjeta guardada")
+    // — cambia la forma del `payer` que se le manda a MercadoPago, ver
+    // mercadopago.service.js#autorizarPago.
+    customerId,
   } = req.body;
   const event = await eventModel.buscarPorId(req.params.eventId);
 
@@ -135,6 +140,7 @@ const crear = asyncHandler(async (req, res) => {
         identificationType,
         identificationNumber,
         payerEmail: req.user.email,
+        customerId,
         djAccessToken,
         applicationFee: comisionClp,
       });

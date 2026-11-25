@@ -13,20 +13,21 @@ function escapeHtml(value) {
   }[c]));
 }
 
-// Página de checkout que se carga en un WebView solo para tokenizar la
-// tarjeta con el "Card Payment Brick" de MercadoPago.js (la tarjeta se
-// tokeniza con la Public Key, el número nunca llega al backend de
-// BudSound). El POST real a `/api/events/:eventId/requests` (donde se
+// Página de checkout que se carga en un WebView para tokenizar la tarjeta
+// (la tarjeta se tokeniza con la Public Key, el número nunca llega al
+// backend de BudSound). Dos caminos posibles, nunca los dos a la vez:
+// tarjeta guardada (formulario propio con mp.fields, solo pide el CVV) o
+// tarjeta nueva ("Card Payment Brick" de MercadoPago.js) — ver el bloque
+// de JS más abajo para el detalle de por qué son dos mecanismos
+// distintos. El POST real a `/api/events/:eventId/requests` (donde se
 // dispara `autorizarPago`, ver CLAUDE.md riesgo "Autorización de pago vs.
 // captura") lo hace FLUTTER, no esta página — ver el comentario en
 // `onSubmit` más abajo para el porqué. El campo `checkoutToken` (el mismo
 // token de 15 minutos de `emitirTokenCheckout` que ya traía
-// `McpCheckoutScreen`, ver DECISIONES_TECNICAS.md) ahora sí se usa acá: con
-// él se busca/crea el "Customer" de MercadoPago del Participante y se le
-// pasa al Brick (`initialization.payer.customerId`) para que muestre su
-// tarjeta guardada en vez de un formulario vacío — ver `buscarOCrearCustomer`
-// en mercadopago.service.js. Si el token falta, es inválido, o MercadoPago
-// no responde, se sigue sin `customerId`: el Brick cae solo a pedir una
+// `McpCheckoutScreen`, ver DECISIONES_TECNICAS.md) se usa acá para
+// resolver/crear el "Customer" de MercadoPago del Participante y listar
+// sus tarjetas guardadas. Si el token falta, es inválido, o MercadoPago no
+// responde, se sigue sin tarjetas guardadas: cae directo al Brick de
 // tarjeta nueva, igual que antes de esta función existir (mismo patrón
 // resiliente que el resto de las integraciones opcionales del proyecto).
 async function paginaCheckout(req, res) {
@@ -47,12 +48,30 @@ async function paginaCheckout(req, res) {
 
   let customerId = null;
   let payerEmail = null;
+  // Tarjetas ya guardadas del Customer — si hay alguna, se le ofrece al
+  // Participante un formulario propio de "solo CVV" (ver más abajo, la API
+  // mp.fields) ANTES del Card Payment Brick. El Brick (mp.bricks().create
+  // con 'cardPayment') nunca mostró tarjetas guardadas: ese feature solo
+  // existe en el Payment Brick, distinto al que usa esta página — ver
+  // DECISIONES_TECNICAS.md #45, "Card Payment Brick vs. Payment Brick". El
+  // camino real para reusar una tarjeta guardada es la API de "Receive
+  // payments with saved cards" (mp.fields.createCardToken con el cardId +
+  // el CVV reingresado), no Brick.
+  let tarjetasGuardadas = [];
   if (checkoutToken && mercadopagoService.credencialesListas()) {
     try {
       const payload = jwt.verify(checkoutToken, env.jwtSecret);
       payerEmail = payload.email || null;
       if (payerEmail) {
         customerId = await asegurarCustomerId(payload.sub, payerEmail);
+        const tarjetas = await mercadopagoService.listarTarjetasGuardadas(customerId);
+        tarjetasGuardadas = tarjetas.map((t) => ({
+          id: t.id,
+          ultimosDigitos: t.last_four_digits,
+          paymentMethodId: t.payment_method?.id,
+          franquicia: t.payment_method?.name,
+          issuerId: t.issuer?.id ? String(t.issuer.id) : null,
+        }));
       }
     } catch (error) {
       console.error('No se pudo resolver el Customer de MercadoPago (se sigue sin tarjeta guardada):', error.message);
@@ -69,6 +88,7 @@ async function paginaCheckout(req, res) {
     terminosAceptados: Boolean(terminosAceptados),
     customerId,
     payerEmail,
+    tarjetasGuardadas,
   };
 
   res.set('Content-Type', 'text/html; charset=utf-8').send(`<!DOCTYPE html>
@@ -85,11 +105,22 @@ async function paginaCheckout(req, res) {
   #estado { margin-top:12px; font-size:14px; color:#9aa0b4; min-height:18px; font-weight:600; }
   #estado.error { color:#ff6b6b; }
   #diag { margin-top:8px; font-size:11px; color:#4a5168; white-space:pre-wrap; word-break:break-all; }
+  #formTarjetaGuardada { display:none; flex-direction:column; gap:10px; }
+  #formTarjetaGuardada select { background:#161622; color:#fff; border:1px solid #2a2a3d; border-radius:8px; padding:10px; font-size:14px; }
+  #formTarjetaGuardada .cvvCaja { height:20px; display:flex; align-items:center; border:1px solid #2a2a3d; border-radius:8px; padding:8px 10px; background:#161622; }
+  #formTarjetaGuardada button { background:#c6ff3d; color:#0b0b14; border:none; border-radius:8px; padding:12px; font-size:15px; font-weight:700; }
+  #usarOtraTarjeta { background:none; border:none; color:#9aa0b4; text-decoration:underline; font-size:13px; align-self:flex-start; padding:4px 0; }
 </style>
 </head>
 <body>
   <h1>Propina de $${datos.montoClp.toLocaleString('es-CL')} CLP</h1>
   <p>${escapeHtml(datos.titulo)}${datos.artista ? ' — ' + escapeHtml(datos.artista) : ''}</p>
+  <form id="formTarjetaGuardada">
+    <select id="selectTarjeta"></select>
+    <div class="cvvCaja" id="cvvContainer"></div>
+    <button type="submit">Pagar</button>
+    <button type="button" id="usarOtraTarjeta">Usar otra tarjeta</button>
+  </form>
   <div id="cardPaymentBrick_container"></div>
   <div id="estado">Cargando formulario de pago…</div>
   <div id="diag"></div>
@@ -143,16 +174,77 @@ async function paginaCheckout(req, res) {
       }
     };
 
+    // Formulario de "pagar con tarjeta guardada": separado del Brick
+    // (mp.fields, no mp.bricks) porque el Card Payment Brick no soporta
+    // tarjetas guardadas — ver DECISIONES_TECNICAS.md #45. Solo pide el
+    // CVV: el resto de los datos de la tarjeta ya los tiene MercadoPago
+    // guardados contra customerId.
+    const formTarjetaGuardada = document.getElementById('formTarjetaGuardada');
+    const cardPaymentBrickContainer = document.getElementById('cardPaymentBrick_container');
+    let brickMontado = false;
+
+    function montarBrickTarjetaNueva() {
+      formTarjetaGuardada.style.display = 'none';
+      cardPaymentBrickContainer.style.display = '';
+      if (brickMontado) return;
+      brickMontado = true;
+      montarCardPaymentBrick();
+    }
+
+    if (datos.tarjetasGuardadas && datos.tarjetasGuardadas.length > 0) {
+      diag('Mostrando ' + datos.tarjetasGuardadas.length + ' tarjeta(s) guardada(s).');
+      cardPaymentBrickContainer.style.display = 'none';
+      formTarjetaGuardada.style.display = 'flex';
+      estadoEl.textContent = '';
+
+      const selectTarjeta = document.getElementById('selectTarjeta');
+      datos.tarjetasGuardadas.forEach((t) => {
+        const opcion = document.createElement('option');
+        opcion.value = t.id;
+        opcion.textContent = (t.franquicia || 'Tarjeta') + ' terminada en ' + t.ultimosDigitos;
+        selectTarjeta.appendChild(opcion);
+      });
+
+      const campoCvv = mp.fields.create('securityCode', { placeholder: 'CVV' });
+      campoCvv.mount('cvvContainer');
+
+      document.getElementById('usarOtraTarjeta').addEventListener('click', montarBrickTarjetaNueva);
+
+      formTarjetaGuardada.addEventListener('submit', async (evento) => {
+        evento.preventDefault();
+        estadoEl.textContent = 'Confirmando con BudSound...';
+        estadoEl.className = '';
+        try {
+          const tarjeta = datos.tarjetasGuardadas.find((t) => t.id === selectTarjeta.value);
+          const token = await mp.fields.createCardToken({ cardId: selectTarjeta.value });
+          diag('Token de tarjeta guardada creado.');
+          avisarFlutter(JSON.stringify({
+            tipo: 'token',
+            cardToken: token.id,
+            paymentMethodId: tarjeta.paymentMethodId,
+            installments: 1,
+            issuerId: tarjeta.issuerId,
+            customerId: datos.customerId,
+          }));
+        } catch (error) {
+          estadoEl.textContent = 'No se pudo procesar la tarjeta guardada.';
+          estadoEl.className = 'error';
+          diag('Error creando token de tarjeta guardada: ' + JSON.stringify(error));
+        }
+      });
+    } else {
+      montarBrickTarjetaNueva();
+    }
+
+    function montarCardPaymentBrick() {
     mp.bricks().create('cardPayment', 'cardPaymentBrick_container', {
       initialization: {
         amount: datos.montoClp,
-        // Con customerId, el Brick lista la tarjeta guardada del
-        // Participante (si tiene una) y solo pide el CVV para volver a
-        // pagar — sin eso (ej. primera propina, o si MercadoPago no
-        // respondió al crear el Customer), cae solo al formulario vacío de
-        // siempre. payer.email lo precarga para no pedírselo de nuevo.
+        // payer.email lo precarga para no pedírselo de nuevo. Ya no se le
+        // pasa customerId: el Card Payment Brick no soporta tarjetas
+        // guardadas (ver arriba) — este Brick solo se usa para tarjetas
+        // nuevas.
         payer: {
-          customerId: datos.customerId || undefined,
           email: datos.payerEmail || undefined,
         },
       },
@@ -218,6 +310,7 @@ async function paginaCheckout(req, res) {
         },
       },
     });
+    }
   </script>
 </body>
 </html>`);

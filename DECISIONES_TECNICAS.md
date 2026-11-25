@@ -1671,6 +1671,56 @@ con esa segunda tarjeta, cerrar y volver a pagar) — la instalada en los
 emuladores es de antes de este cambio y no manda el `checkoutToken` nuevo,
 así que hace falta una APK nueva para verlo andar en pantalla.
 
+**Corrección (2026-11-24, mismo día, después de probar en la tablet):**
+la primera versión de esto (arriba) le pasaba `customerId` al Card Payment
+Brick (`mp.bricks().create('cardPayment', ...)`) esperando que mostrara la
+tarjeta guardada. En la tablet, después de pagar y de que el backend
+confirmara que la tarjeta quedó guardada, la segunda propina igual mostró
+el formulario vacío — nunca ofreció la tarjeta guardada. Causa real,
+confirmada leyendo la documentación oficial de MercadoPago: **"Add saved
+cards" es una característica exclusiva del Payment Brick** (`mp.bricks
+().create('payment', ...)`), no del Card Payment Brick que usa esta app —
+la lista de "Advanced features" del Card Payment Brick en la documentación
+ni siquiera menciona tarjetas guardadas. Pasarle `customerId` a ese Brick
+nunca iba a hacer nada.
+
+El mecanismo real para cobrar con una tarjeta guardada (documentado en
+"Checkout API → Save cards → Receive payments with saved cards") no usa
+Bricks para nada — es una API más chica, `mp.fields` (parte del mismo SDK
+de MercadoPago.js, pero independiente de `mp.bricks`):
+
+1. `GET /v1/customers/{id}/cards` para listar las tarjetas (ya existía:
+   `listarTarjetasGuardadas`).
+2. Un `<select>` propio con esas tarjetas + un campo de CVV montado con
+   `mp.fields.create('securityCode', {...}).mount(...)`.
+3. `mp.fields.createCardToken({ cardId })` — genera un token de un solo uso
+   para esa tarjeta puntual, usando solo el CVV que se acaba de capturar.
+4. `POST /v1/payments` con ese token y `payer: { type: 'customer', id:
+   customerId }` (no `email`) — distinto del `payer` que se manda para una
+   tarjeta nueva.
+
+**Cómo quedó ahora:** `checkout.controller.js` muestra un formulario propio
+(`#formTarjetaGuardada`, `mp.fields`) ANTES del Card Payment Brick cuando el
+Customer tiene al menos una tarjeta guardada (se listan en el propio
+`paginaCheckout`, ya no solo se resuelve el `customerId`); un botón "Usar
+otra tarjeta" lo oculta y monta el Brick de siempre para una tarjeta nueva.
+El Brick ya NO recibe `customerId` (nunca hizo nada ahí). El token que sale
+de `mp.fields.createCardToken` se manda a Flutter por el mismo canal
+`BudSoundCheckout`, agregando `customerId` al mensaje.
+`mercadopago.service.js#autorizarPago` ahora acepta un `customerId`
+opcional: si viene, el `payer` que se manda a `/v1/payments` es `{ type:
+'customer', id: customerId }` en vez de `{ email, identification }` — así
+lo exige la API para este camino. `request.controller.js` solo reenvía el
+`customerId` que venga en el body; `mp_checkout_screen.dart` y
+`request_service.dart` lo pasan de punta a punta sin tocar el resto del
+flujo (sigue siendo Flutter quien hace el POST real, nunca la página).
+
+**Todavía falta:** la prueba de punta a punta desde la app con esta
+versión corregida — necesita una APK nueva (el fix toca el HTML/JS que
+sirve `checkout.controller.js`, que se genera en cada request, pero el
+envío de `customerId` desde el WebView a Flutter y de Flutter al backend
+sí necesita la APK nueva).
+
 ---
 
 _Última actualización: se va completando a medida que aparecen más

@@ -391,15 +391,28 @@ pegado adentro por error de copy-paste — ya pasó una vez).
 Implementado (2026-11-24, ver DECISIONES_TECNICAS.md #45): la primera vez
 que un Participante paga una propina con una tarjeta nueva, queda guardada
 en MercadoPago (`mp_customer_id` en `users`) — la próxima propina, en
-cualquier evento de cualquier DJ, el Card Payment Brick la ofrece y solo
-pide el CVV. Un solo `mp_customer_id` por Participante alcanza para pagarle
-a cualquier DJ, porque el tokenizado de la tarjeta siempre pasa por la
-cuenta CENTRAL de BudSound (nunca por la del DJ conectado, aunque el cobro
-en sí sí se autorice ahí vía `application_fee` — ver "Split de pagos por
-DJ" arriba). Perfil → "Tarjetas guardadas" (solo Participante) para
-ver/borrar. Sin `MERCADOPAGO_ACCESS_TOKEN` real configurado, esta capa
-queda inerte (mismo patrón resiliente que el resto de las integraciones
-opcionales).
+cualquier evento de cualquier DJ, solo pide el CVV, no el formulario
+completo de nuevo. Un solo `mp_customer_id` por Participante alcanza para
+pagarle a cualquier DJ, porque el tokenizado de la tarjeta siempre pasa por
+la cuenta CENTRAL de BudSound (nunca por la del DJ conectado, aunque el
+cobro en sí sí se autorice ahí vía `application_fee` — ver "Split de pagos
+por DJ" arriba).
+
+**Ojo:** el Card Payment Brick (el que pide una tarjeta nueva) **no
+soporta tarjetas guardadas** — eso es exclusivo del Payment Brick, un tipo
+de Brick distinto que BudSound no usa (ver DECISIONES_TECNICAS.md #45 para
+el detalle completo, fue la causa de un bug real). Por eso, pagar con una
+tarjeta guardada usa un mecanismo separado (`mp.fields`, no `mp.bricks`):
+`checkout.controller.js` muestra su propio formulario de "elegir tarjeta +
+CVV" cuando el Customer tiene tarjetas guardadas, con un botón "Usar otra
+tarjeta" que cae al Brick normal. `mercadopago.service.js#autorizarPago`
+acepta un `customerId` opcional para armar el `payer` distinto que exige
+la API de MercadoPago en ese camino (`{ type: 'customer', id }` en vez de
+`{ email }`).
+
+Perfil → "Tarjetas guardadas" (solo Participante) para ver/borrar. Sin
+`MERCADOPAGO_ACCESS_TOKEN` real configurado, esta capa queda inerte (mismo
+patrón resiliente que el resto de las integraciones opcionales).
 
 ## Verificación de correo al registrarse
 

@@ -204,6 +204,9 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
         issuerId: datos['issuerId'] as String?,
         identificationType: datos['identificationType'] as String?,
         identificationNumber: datos['identificationNumber'] as String?,
+        // Viene cuando se pagó con una tarjeta YA guardada (ver
+        // checkout.controller.js) — se reenvía tal cual al backend.
+        customerId: datos['customerId'] as String?,
       );
     }
   }
@@ -217,6 +220,7 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
     String? issuerId,
     String? identificationType,
     String? identificationNumber,
+    String? customerId,
   }) async {
     if (_confirmando) return;
     _confirmando = true;
@@ -236,6 +240,7 @@ class _McpCheckoutScreenState extends State<McpCheckoutScreen> {
         issuerId: issuerId,
         identificationType: identificationType,
         identificationNumber: identificationNumber,
+        customerId: customerId,
         tokenCheckout: _checkoutToken,
       );
       _diag('Flutter: respuesta OK, solicitud creada.');

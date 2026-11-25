@@ -36,6 +36,7 @@ class RequestService {
     String? issuerId,
     String? identificationType,
     String? identificationNumber,
+    String? customerId,
     String? tokenCheckout,
   }) async {
     final data = await _api.post(
@@ -54,6 +55,11 @@ class RequestService {
         if (issuerId != null) 'issuerId': issuerId,
         if (identificationType != null) 'identificationType': identificationType,
         if (identificationNumber != null) 'identificationNumber': identificationNumber,
+        // Viene cuando se pagó con una tarjeta YA guardada (ver
+        // checkout.controller.js, formulario de "pagar con tarjeta
+        // guardada") — el backend lo necesita para armar el `payer` que le
+        // manda a MercadoPago con type:'customer' en vez de email.
+        if (customerId != null) 'customerId': customerId,
       },
     );
     return SongRequestModel.fromJson(data['request'] as Map<String, dynamic>);
