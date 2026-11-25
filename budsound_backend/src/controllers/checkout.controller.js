@@ -182,12 +182,29 @@ async function paginaCheckout(req, res) {
     const formTarjetaGuardada = document.getElementById('formTarjetaGuardada');
     const cardPaymentBrickContainer = document.getElementById('cardPaymentBrick_container');
     let brickMontado = false;
+    let campoCvv = null;
 
     function montarBrickTarjetaNueva() {
       formTarjetaGuardada.style.display = 'none';
       cardPaymentBrickContainer.style.display = '';
       if (brickMontado) return;
       brickMontado = true;
+      // El campo de CVV de "tarjeta guardada" (mp.fields) y el Card
+      // Payment Brick usan por debajo la misma infraestructura de Secure
+      // Fields de MercadoPago.js — tenerlos montados los dos a la vez
+      // (aunque el del CVV quede oculto con display:none) hace que el
+      // Brick falle al montarse con "fields_setup_failed_after_3_tries" /
+      // "The integration with Secure Fields failed" (probado a mano en la
+      // tablet). Hay que desmontar el campo de CVV antes de montar el
+      // Brick.
+      if (campoCvv) {
+        try {
+          campoCvv.unmount();
+        } catch (error) {
+          diag('No se pudo desmontar el campo de CVV: ' + (error && error.message));
+        }
+        campoCvv = null;
+      }
       montarCardPaymentBrick();
     }
 
@@ -205,7 +222,7 @@ async function paginaCheckout(req, res) {
         selectTarjeta.appendChild(opcion);
       });
 
-      const campoCvv = mp.fields.create('securityCode', { placeholder: 'CVV' });
+      campoCvv = mp.fields.create('securityCode', { placeholder: 'CVV' });
       campoCvv.mount('cvvContainer');
 
       document.getElementById('usarOtraTarjeta').addEventListener('click', montarBrickTarjetaNueva);

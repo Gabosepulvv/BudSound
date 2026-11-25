@@ -1715,11 +1715,23 @@ lo exige la API para este camino. `request.controller.js` solo reenvía el
 `request_service.dart` lo pasan de punta a punta sin tocar el resto del
 flujo (sigue siendo Flutter quien hace el POST real, nunca la página).
 
-**Todavía falta:** la prueba de punta a punta desde la app con esta
-versión corregida — necesita una APK nueva (el fix toca el HTML/JS que
-sirve `checkout.controller.js`, que se genera en cada request, pero el
-envío de `customerId` desde el WebView a Flutter y de Flutter al backend
-sí necesita la APK nueva).
+**Probado en la tablet (2026-11-24): el camino de tarjeta guardada SÍ
+funcionó** — mostró el selector + CVV y pagó bien. **Segundo bug
+encontrado al probar "Usar otra tarjeta":** el Brick tiraba `onError` con
+`{"cause":"fields_setup_failed_after_3_tries","message":"The integration
+with Secure Fields failed"}`. Causa: el campo de CVV de tarjeta guardada
+(`mp.fields.create('securityCode', ...)`) y el Card Payment Brick usan por
+debajo la MISMA infraestructura de Secure Fields de MercadoPago.js —
+tenerlos montados los dos a la vez (aunque el del CVV quede oculto con
+`display:none`, nunca se destruyó) hace que el Brick falle al intentar
+montar la suya. **Fix:** `campoCvv.unmount()` antes de montar el Brick, al
+tocar "Usar otra tarjeta" (ver `checkout.controller.js`,
+`montarBrickTarjetaNueva`).
+
+**Todavía falta:** repetir la prueba en la tablet con este segundo fix
+(cambia solo el HTML/JS que sirve `checkout.controller.js`, que se genera
+en cada request — no necesita una APK nueva, solo que el backend de
+producción tenga el deploy más reciente).
 
 ---
 
