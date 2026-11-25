@@ -1728,10 +1728,35 @@ montar la suya. **Fix:** `campoCvv.unmount()` antes de montar el Brick, al
 tocar "Usar otra tarjeta" (ver `checkout.controller.js`,
 `montarBrickTarjetaNueva`).
 
-**Todavía falta:** repetir la prueba en la tablet con este segundo fix
-(cambia solo el HTML/JS que sirve `checkout.controller.js`, que se genera
-en cada request — no necesita una APK nueva, solo que el backend de
-producción tenga el deploy más reciente).
+**Probado en la tablet (2026-11-24): este segundo fix también funcionó** —
+pagar con tarjeta guardada y después tocar "Usar otra tarjeta" ya no rompe
+el Brick. **Tercer hallazgo, de UX (no un bug de pago, todavía sin probar
+en la tablet):** no había forma de volver atrás — una vez en el
+formulario de tarjeta nueva, no quedaba botón para volver al de tarjeta
+guardada. Se agregó un botón simétrico
+("Usar tarjeta guardada") junto al Brick, visible solo si el Participante
+tiene tarjetas guardadas. Como el campo de CVV y el Brick no pueden
+convivir montados (ver hallazgo de arriba), cada cambio de vista desmonta
+el lado contrario por completo (`desmontarCampoCvv`/`desmontarBrick`, con
+el controller del Brick capturado del `.then()` de `mp.bricks().create`),
+no solo lo esconde con CSS — así se puede ir y volver las veces que haga
+falta sin que ninguno de los dos quede "fantasma" interfiriendo con el
+otro.
+
+**Sobre privacidad: NINGÚN dato de tarjeta pasa por el backend de
+BudSound, ni guardado ni de paso.** Tanto para tarjeta nueva (Brick) como
+para tarjeta guardada (`mp.fields`), el número/CVV se escriben dentro de
+iframes de MercadoPago.js (Secure Fields) que corren en el dominio de
+MercadoPago, no en el nuestro — BudSound nunca los lee ni los toca. Lo
+único que sale de ahí hacia nuestro código es un **token de un solo uso**
+(`cardToken`/`token.id`) que ya no sirve para nada más una vez usado. El
+`mp_customer_id` que guardamos en `users` es solo un ID de referencia
+hacia el "Customer" de MercadoPago — MercadoPago es quien efectivamente
+guarda la tarjeta (PCI DSS es su certificación, no la nuestra). Esto es el
+mismo modelo que ya se usaba para tarjeta nueva desde el principio del
+proyecto (ver CLAUDE.md, "el número de tarjeta nunca toca el backend de
+BudSound"); tarjetas guardadas no cambia esa garantía, solo la extiende al
+caso de "pagar de nuevo".
 
 ---
 

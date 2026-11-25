@@ -109,7 +109,8 @@ async function paginaCheckout(req, res) {
   #formTarjetaGuardada select { background:#161622; color:#fff; border:1px solid #2a2a3d; border-radius:8px; padding:10px; font-size:14px; }
   #formTarjetaGuardada .cvvCaja { height:20px; display:flex; align-items:center; border:1px solid #2a2a3d; border-radius:8px; padding:8px 10px; background:#161622; }
   #formTarjetaGuardada button { background:#c6ff3d; color:#0b0b14; border:none; border-radius:8px; padding:12px; font-size:15px; font-weight:700; }
-  #usarOtraTarjeta { background:none; border:none; color:#9aa0b4; text-decoration:underline; font-size:13px; align-self:flex-start; padding:4px 0; }
+  #usarOtraTarjeta, #usarTarjetaGuardada { background:none; border:none; color:#9aa0b4; text-decoration:underline; font-size:13px; align-self:flex-start; padding:4px 0; }
+  #usarTarjetaGuardada { margin-bottom:8px; }
 </style>
 </head>
 <body>
@@ -121,6 +122,7 @@ async function paginaCheckout(req, res) {
     <button type="submit">Pagar</button>
     <button type="button" id="usarOtraTarjeta">Usar otra tarjeta</button>
   </form>
+  <button type="button" id="usarTarjetaGuardada" style="display:none">Usar tarjeta guardada</button>
   <div id="cardPaymentBrick_container"></div>
   <div id="estado">Cargando formulario de pago…</div>
   <div id="diag"></div>
@@ -178,41 +180,67 @@ async function paginaCheckout(req, res) {
     // (mp.fields, no mp.bricks) porque el Card Payment Brick no soporta
     // tarjetas guardadas — ver DECISIONES_TECNICAS.md #45. Solo pide el
     // CVV: el resto de los datos de la tarjeta ya los tiene MercadoPago
-    // guardados contra customerId.
+    // guardados contra customerId. El campo de CVV (mp.fields) y el Brick
+    // usan por debajo la misma infraestructura de Secure Fields de
+    // MercadoPago.js — nunca pueden estar los dos montados a la vez
+    // (aunque uno quede oculto con display:none), o el que se monta
+    // segundo falla con "fields_setup_failed_after_3_tries" (probado a
+    // mano en la tablet). Por eso cada cambio de vista desmonta el otro
+    // lado antes de montar el propio, en vez de solo esconderlo.
     const formTarjetaGuardada = document.getElementById('formTarjetaGuardada');
     const cardPaymentBrickContainer = document.getElementById('cardPaymentBrick_container');
-    let brickMontado = false;
+    const botonUsarTarjetaGuardada = document.getElementById('usarTarjetaGuardada');
+    const tieneTarjetasGuardadas = Boolean(datos.tarjetasGuardadas && datos.tarjetasGuardadas.length > 0);
     let campoCvv = null;
+    let brickController = null;
+    let brickMontando = false;
 
-    function montarBrickTarjetaNueva() {
-      formTarjetaGuardada.style.display = 'none';
-      cardPaymentBrickContainer.style.display = '';
-      if (brickMontado) return;
-      brickMontado = true;
-      // El campo de CVV de "tarjeta guardada" (mp.fields) y el Card
-      // Payment Brick usan por debajo la misma infraestructura de Secure
-      // Fields de MercadoPago.js — tenerlos montados los dos a la vez
-      // (aunque el del CVV quede oculto con display:none) hace que el
-      // Brick falle al montarse con "fields_setup_failed_after_3_tries" /
-      // "The integration with Secure Fields failed" (probado a mano en la
-      // tablet). Hay que desmontar el campo de CVV antes de montar el
-      // Brick.
-      if (campoCvv) {
-        try {
-          campoCvv.unmount();
-        } catch (error) {
-          diag('No se pudo desmontar el campo de CVV: ' + (error && error.message));
-        }
-        campoCvv = null;
+    function desmontarCampoCvv() {
+      if (!campoCvv) return;
+      try {
+        campoCvv.unmount();
+      } catch (error) {
+        diag('No se pudo desmontar el campo de CVV: ' + (error && error.message));
       }
-      montarCardPaymentBrick();
+      campoCvv = null;
     }
 
-    if (datos.tarjetasGuardadas && datos.tarjetasGuardadas.length > 0) {
-      diag('Mostrando ' + datos.tarjetasGuardadas.length + ' tarjeta(s) guardada(s).');
+    function desmontarBrick() {
+      if (!brickController) return;
+      try {
+        brickController.unmount();
+      } catch (error) {
+        diag('No se pudo desmontar el Brick: ' + (error && error.message));
+      }
+      brickController = null;
+      brickMontando = false;
+    }
+
+    function mostrarTarjetaNueva() {
+      formTarjetaGuardada.style.display = 'none';
+      cardPaymentBrickContainer.style.display = '';
+      botonUsarTarjetaGuardada.style.display = tieneTarjetasGuardadas ? '' : 'none';
+      desmontarCampoCvv();
+      if (!brickController && !brickMontando) {
+        brickMontando = true;
+        montarCardPaymentBrick();
+      }
+    }
+
+    function mostrarTarjetaGuardada() {
       cardPaymentBrickContainer.style.display = 'none';
+      botonUsarTarjetaGuardada.style.display = 'none';
       formTarjetaGuardada.style.display = 'flex';
       estadoEl.textContent = '';
+      desmontarBrick();
+      if (!campoCvv) {
+        campoCvv = mp.fields.create('securityCode', { placeholder: 'CVV' });
+        campoCvv.mount('cvvContainer');
+      }
+    }
+
+    if (tieneTarjetasGuardadas) {
+      diag('Mostrando ' + datos.tarjetasGuardadas.length + ' tarjeta(s) guardada(s).');
 
       const selectTarjeta = document.getElementById('selectTarjeta');
       datos.tarjetasGuardadas.forEach((t) => {
@@ -222,10 +250,8 @@ async function paginaCheckout(req, res) {
         selectTarjeta.appendChild(opcion);
       });
 
-      campoCvv = mp.fields.create('securityCode', { placeholder: 'CVV' });
-      campoCvv.mount('cvvContainer');
-
-      document.getElementById('usarOtraTarjeta').addEventListener('click', montarBrickTarjetaNueva);
+      document.getElementById('usarOtraTarjeta').addEventListener('click', mostrarTarjetaNueva);
+      botonUsarTarjetaGuardada.addEventListener('click', mostrarTarjetaGuardada);
 
       formTarjetaGuardada.addEventListener('submit', async (evento) => {
         evento.preventDefault();
@@ -249,8 +275,10 @@ async function paginaCheckout(req, res) {
           diag('Error creando token de tarjeta guardada: ' + JSON.stringify(error));
         }
       });
+
+      mostrarTarjetaGuardada();
     } else {
-      montarBrickTarjetaNueva();
+      mostrarTarjetaNueva();
     }
 
     function montarCardPaymentBrick() {
@@ -272,10 +300,12 @@ async function paginaCheckout(req, res) {
         // ni siquiera llegar a disparar onError (se vio en el logcat del
         // WebView: el error lo tira cardPayment.js antes de montar nada).
         onReady: () => {
+          brickMontando = false;
           estadoEl.textContent = '';
           diag('Brick listo.');
         },
         onError: (error) => {
+          brickMontando = false;
           estadoEl.textContent = 'No se pudo cargar el formulario de pago.';
           estadoEl.className = 'error';
           avisarFlutter('error:No se pudo cargar el formulario de pago.');
@@ -326,6 +356,8 @@ async function paginaCheckout(req, res) {
           return Promise.resolve();
         },
       },
+    }).then((controller) => {
+      brickController = controller;
     });
     }
   </script>
